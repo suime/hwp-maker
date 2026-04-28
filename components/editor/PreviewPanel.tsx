@@ -1,93 +1,105 @@
 'use client';
 
-/**
- * hwp 문서 미리보기/편집 패널 (MainPanel 내부)
- * DESIGN.md: 편집 / 미리보기 2가지 뷰 모드 (분할보기 없음)
- */
-
 type ViewMode = 'edit' | 'preview';
 
 export default function PreviewPanel() {
   return (
-    <div className="flex flex-col h-full bg-[var(--color-bg-base)]">
+    <div
+      className="flex flex-col h-full"
+      style={{ background: 'var(--color-bg-base)' }}
+    >
       <ViewModeBar />
-      <DocumentArea />
+      <DocumentCanvas />
     </div>
   );
 }
 
 function ViewModeBar() {
   return (
-    <div className="flex items-center justify-between px-4 h-10 bg-[var(--color-bg-panel)] border-b border-[var(--color-bg-border)] flex-shrink-0">
-      {/* 뷰 모드 토글 */}
-      <div className="flex items-center gap-1 bg-[var(--color-bg-surface)] rounded-lg p-0.5">
-        <ViewModeButton id="view-edit" label="편집" active />
-        <ViewModeButton id="view-preview" label="미리보기" active={false} />
+    <div
+      className="flex items-center justify-between px-4 h-10 border-b flex-shrink-0"
+      style={{
+        background: 'var(--color-bg-panel)',
+        borderColor: 'var(--color-bg-border)',
+      }}
+    >
+      {/* 뷰 모드 탭 */}
+      <div
+        className="flex items-center gap-0.5 rounded-lg p-0.5"
+        style={{ background: 'var(--color-bg-surface)' }}
+      >
+        <ViewTab id="view-edit" label="편집" active />
+        <ViewTab id="view-preview" label="미리보기" active={false} />
       </div>
 
-      {/* 우측: 상태 표시 */}
-      <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block" />
-        <span>rhwp WASM 연동 대기 중</span>
-      </div>
+      {/* 상태 */}
+      <span className="badge-warning text-xs">rhwp WASM 연동 대기</span>
     </div>
   );
 }
 
-function ViewModeButton({ id, label, active }: { id: string; label: string; active: boolean }) {
+function ViewTab({ id, label, active }: { id: string; label: string; active: boolean }) {
   return (
     <button
       id={id}
-      className={`px-3 py-1 text-xs rounded-md transition-colors ${
+      className="px-3 py-1 text-xs rounded-md transition-all"
+      style={
         active
-          ? 'bg-[var(--color-bg-panel)] text-[var(--color-text-primary)] shadow-sm'
-          : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-      }`}
+          ? {
+              background: 'var(--color-bg-panel)',
+              color: 'var(--color-text-primary)',
+              fontWeight: 500,
+            }
+          : {
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+            }
+      }
     >
       {label}
     </button>
   );
 }
 
-function DocumentArea() {
+function DocumentCanvas() {
   return (
-    <div className="flex-1 overflow-auto flex justify-center p-8 bg-[#141922]">
+    <div
+      className="flex-1 overflow-auto flex justify-center py-10 px-6"
+      style={{ background: 'var(--color-doc-canvas)' }}
+    >
       {/* A4 문서 용지 */}
       <div
-        className="bg-white text-gray-800 rounded shadow-2xl relative flex-shrink-0"
+        className="rounded-sm shadow-xl relative flex-shrink-0"
         style={{
           width: '210mm',
           minHeight: '297mm',
           padding: '25mm 20mm',
+          background: 'var(--color-doc-paper)',
+          color: '#333',
         }}
       >
-        {/* WASM 연동 전 플레이스홀더 */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center select-none">
-            <div className="text-5xl mb-4 opacity-10">📄</div>
-            <p className="text-sm text-gray-300 opacity-30">
+        {/* 플레이스홀더 */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+          <div className="text-center opacity-[0.12]">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto mb-3 opacity-60">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <p className="text-sm font-medium text-gray-400">
               rhwp WASM 연동 후<br />문서가 표시됩니다
             </p>
           </div>
         </div>
 
-        {/* 스켈레톤 라인 */}
-        <div className="space-y-3 opacity-[0.07]">
-          <div className="h-7 bg-gray-400 rounded w-1/2 mx-auto mb-6" />
-          {[1, 0.9, 0.75, 1, 0.85, 0.95, 0.7, 1, 0.8].map((w, i) => (
-            <div
-              key={i}
-              className="h-3.5 bg-gray-400 rounded"
-              style={{ width: `${w * 100}%` }}
-            />
+        {/* 스켈레톤 */}
+        <div className="space-y-3 opacity-[0.06]">
+          <div className="h-7 bg-gray-500 rounded w-1/2 mx-auto mb-8" />
+          {[1, 0.88, 0.74, 1, 0.83, 0.96, 0.68].map((w, i) => (
+            <div key={i} className="h-3 bg-gray-500 rounded" style={{ width: `${w * 100}%` }} />
           ))}
-          <div className="pt-4" />
-          {[0.65, 0.9, 1, 0.8].map((w, i) => (
-            <div
-              key={`b-${i}`}
-              className="h-3.5 bg-gray-400 rounded"
-              style={{ width: `${w * 100}%` }}
-            />
+          <div className="pt-5" />
+          {[0.62, 0.91, 1, 0.78, 0.85].map((w, i) => (
+            <div key={`b${i}`} className="h-3 bg-gray-500 rounded" style={{ width: `${w * 100}%` }} />
           ))}
         </div>
       </div>

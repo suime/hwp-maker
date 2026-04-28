@@ -1,49 +1,335 @@
 @import "tailwindcss";
 
-:root {
-  /* 브랜드 컬러 */
-  --color-brand: #4f8ef7;
-  --color-brand-dark: #3a6fd8;
+/* =============================================================================
+   Catppuccin 팔레트 원본 색상 정의
+   https://github.com/catppuccin/catppuccin
+   ============================================================================= */
 
-  /* 배경 레이어 */
-  --color-bg-base: #0a0e1a;
-  --color-bg-panel: #111827;
-  --color-bg-surface: #1a2236;
-  --color-bg-border: #1f2d44;
+/* --- Latte (Light) --------------------------------------------------------- */
+:root,
+[data-theme="latte"] {
+  /* 팔레트 원본 */
+  --ctp-rosewater: #dc8a78;
+  --ctp-flamingo:  #dd7878;
+  --ctp-pink:      #ea76cb;
+  --ctp-mauve:     #8839ef;
+  --ctp-red:       #d20f39;
+  --ctp-maroon:    #e64553;
+  --ctp-peach:     #fe640b;
+  --ctp-yellow:    #df8e1d;
+  --ctp-green:     #40a02b;
+  --ctp-teal:      #179299;
+  --ctp-sky:       #04a5e5;
+  --ctp-sapphire:  #209fb5;
+  --ctp-blue:      #1e66f5;
+  --ctp-lavender:  #7287fd;
+  --ctp-text:      #4c4f69;
+  --ctp-subtext1:  #5c5f77;
+  --ctp-subtext0:  #6c6f85;
+  --ctp-overlay2:  #7c7f93;
+  --ctp-overlay1:  #8c8fa1;
+  --ctp-overlay0:  #9ca0b0;
+  --ctp-surface2:  #acb0be;
+  --ctp-surface1:  #bcc0cc;
+  --ctp-surface0:  #ccd0da;
+  --ctp-base:      #eff1f5;
+  --ctp-mantle:    #e6e9ef;
+  --ctp-crust:     #dce0e8;
 
-  /* 텍스트 */
-  --color-text-primary: #e8edf5;
-  --color-text-secondary: #7a90b0;
-  --color-text-muted: #4a5a74;
+  /* 시맨틱 토큰 → Latte 매핑 */
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface1);
+
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay1);
+
+  /* 문서 영역 (A4 용지 배경) */
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+
+  /* 스크롤바 */
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay0);
 }
 
+/* --- Mocha (Dark) ---------------------------------------------------------- */
+[data-theme="mocha"],
+.dark {
+  /* 팔레트 원본 */
+  --ctp-rosewater: #f5e0dc;
+  --ctp-flamingo:  #f2cdcd;
+  --ctp-pink:      #f5c2e7;
+  --ctp-mauve:     #cba6f7;
+  --ctp-red:       #f38ba8;
+  --ctp-maroon:    #eba0ac;
+  --ctp-peach:     #fab387;
+  --ctp-yellow:    #f9e2af;
+  --ctp-green:     #a6e3a1;
+  --ctp-teal:      #94e2d5;
+  --ctp-sky:       #89dceb;
+  --ctp-sapphire:  #74c7ec;
+  --ctp-blue:      #89b4fa;
+  --ctp-lavender:  #b4befe;
+  --ctp-text:      #cdd6f4;
+  --ctp-subtext1:  #bac2de;
+  --ctp-subtext0:  #a6adc8;
+  --ctp-overlay2:  #9399b2;
+  --ctp-overlay1:  #7f849c;
+  --ctp-overlay0:  #6c7086;
+  --ctp-surface2:  #585b70;
+  --ctp-surface1:  #45475a;
+  --ctp-surface0:  #313244;
+  --ctp-base:      #1e1e2e;
+  --ctp-mantle:    #181825;
+  --ctp-crust:     #11111b;
+
+  /* 시맨틱 토큰 → Mocha 매핑 */
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface1);
+
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay1);
+
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay0);
+}
+
+/* OS 다크모드 자동 적용 (data-theme 미설정 시 fallback) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="latte"]) {
+    --ctp-rosewater: #f5e0dc;
+    --ctp-flamingo:  #f2cdcd;
+    --ctp-pink:      #f5c2e7;
+    --ctp-mauve:     #cba6f7;
+    --ctp-red:       #f38ba8;
+    --ctp-maroon:    #eba0ac;
+    --ctp-peach:     #fab387;
+    --ctp-yellow:    #f9e2af;
+    --ctp-green:     #a6e3a1;
+    --ctp-teal:      #94e2d5;
+    --ctp-sky:       #89dceb;
+    --ctp-sapphire:  #74c7ec;
+    --ctp-blue:      #89b4fa;
+    --ctp-lavender:  #b4befe;
+    --ctp-text:      #cdd6f4;
+    --ctp-subtext1:  #bac2de;
+    --ctp-subtext0:  #a6adc8;
+    --ctp-overlay2:  #9399b2;
+    --ctp-overlay1:  #7f849c;
+    --ctp-overlay0:  #6c7086;
+    --ctp-surface2:  #585b70;
+    --ctp-surface1:  #45475a;
+    --ctp-surface0:  #313244;
+    --ctp-base:      #1e1e2e;
+    --ctp-mantle:    #181825;
+    --ctp-crust:     #11111b;
+
+    --color-brand:          var(--ctp-blue);
+    --color-brand-hover:    var(--ctp-sapphire);
+    --color-accent:         var(--ctp-mauve);
+    --color-success:        var(--ctp-green);
+    --color-warning:        var(--ctp-yellow);
+    --color-error:          var(--ctp-red);
+
+    --color-bg-base:        var(--ctp-base);
+    --color-bg-panel:       var(--ctp-mantle);
+    --color-bg-surface:     var(--ctp-surface0);
+    --color-bg-surface2:    var(--ctp-surface1);
+    --color-bg-border:      var(--ctp-surface1);
+
+    --color-text-primary:   var(--ctp-text);
+    --color-text-secondary: var(--ctp-subtext1);
+    --color-text-muted:     var(--ctp-overlay1);
+
+    --color-doc-canvas:     var(--ctp-crust);
+    --color-doc-paper:      #ffffff;
+
+    --color-scrollbar:      var(--ctp-surface2);
+    --color-scrollbar-hover: var(--ctp-overlay0);
+  }
+}
+
+/* =============================================================================
+   Tailwind v4 @theme — 유틸리티 클래스로 사용 가능하게 노출
+   ============================================================================= */
 @theme inline {
-  --color-background: var(--color-bg-base);
-  --color-foreground: var(--color-text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* =============================================================================
+   기본 스타일
+   ============================================================================= */
 html,
 body {
   height: 100%;
-  background: var(--color-bg-base);
+  background-color: var(--color-bg-base);
   color: var(--color-text-primary);
-  font-family: var(--font-sans), 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+  font-family: var(--font-sans), 'Pretendard', 'Apple SD Gothic Neo',
+    'Noto Sans KR', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* 스크롤바 스타일링 */
+/* 선택 영역 */
+::selection {
+  background-color: color-mix(in srgb, var(--ctp-blue) 30%, transparent);
+  color: var(--color-text-primary);
+}
+
+/* 포커스 링 */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 스크롤바 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-bg-border);
+  background: var(--color-scrollbar);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--color-scrollbar-hover);
+}
+
+/* =============================================================================
+   공통 컴포넌트 스타일
+   ============================================================================= */
+
+/* 버튼 기본 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+  border: none;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--color-brand);
+  color: var(--color-bg-base);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-brand-hover);
+}
+
+.btn-ghost {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+}
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-bg-surface2);
+  color: var(--color-text-primary);
+}
+
+/* 입력 필드 기본 */
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  transition: border-color 0.15s ease;
+}
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-brand);
+}
+
+/* 구분선 */
+.divider {
+  height: 1px;
+  background-color: var(--color-bg-border);
+}
+
+/* 패널 헤더 */
+.panel-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-bg-border);
+  flex-shrink: 0;
+}
+.panel-header h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.panel-header p {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+}
+
+/* 섹션 레이블 */
+.section-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  padding: 0 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 상태 뱃지 */
+.badge-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.badge-warning::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--ctp-yellow);
+  flex-shrink: 0;
 }

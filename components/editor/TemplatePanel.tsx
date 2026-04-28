@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * 템플릿 패널
- * DESIGN.md: 기본 내장 템플릿(업무계획(방침), 1P보고서) + 내 템플릿
- */
-
 import { useState, useRef } from 'react';
 
 interface Template {
@@ -12,8 +7,8 @@ interface Template {
   name: string;
   description: string;
   builtIn: boolean;
-  filePath?: string; // public/templates/ 경로 (내장 템플릿)
-  data?: string;     // base64 (사용자 업로드 템플릿)
+  filePath?: string;
+  data?: string;
 }
 
 const BUILT_IN_TEMPLATES: Template[] = [
@@ -40,11 +35,8 @@ function loadMyTemplates(): Template[] {
   try {
     const raw = localStorage.getItem(MY_TEMPLATES_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
-
 function saveMyTemplates(templates: Template[]) {
   localStorage.setItem(MY_TEMPLATES_KEY, JSON.stringify(templates));
 }
@@ -56,8 +48,7 @@ export default function TemplatePanel() {
 
   function handleSelect(template: Template) {
     setActiveId(template.id);
-    // TODO: rhwp WASM 연동 후 메인 패널에 템플릿 로드
-    console.log('[template] 선택:', template.name, template.filePath);
+    console.log('[template] 선택:', template.name);
   }
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -88,67 +79,54 @@ export default function TemplatePanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-bg-panel)]">
+    <div className="flex flex-col h-full" style={{ background: 'var(--color-bg-panel)' }}>
       {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-bg-border)] flex-shrink-0">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+        style={{ borderColor: 'var(--color-bg-border)' }}
+      >
         <div>
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">템플릿</h2>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">양식을 선택하세요</p>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            템플릿
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            양식을 선택하세요
+          </p>
         </div>
         <button
           id="template-upload-btn"
           onClick={() => fileInputRef.current?.click()}
-          className="w-7 h-7 flex items-center justify-center rounded-md bg-[var(--color-bg-surface)] hover:bg-[var(--color-bg-border)] text-[var(--color-text-secondary)] text-sm transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-sm btn btn-ghost"
           title="hwp/hwpx 파일을 템플릿으로 추가"
         >
           +
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".hwp,.hwpx"
-          className="hidden"
-          onChange={handleUpload}
-        />
+        <input ref={fileInputRef} type="file" accept=".hwp,.hwpx" className="hidden" onChange={handleUpload} />
       </div>
 
-      {/* 템플릿 목록 */}
+      {/* 목록 */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {/* 기본 템플릿 */}
         <section>
-          <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-2 px-1">
-            기본 템플릿
-          </p>
-          <ul className="space-y-1">
+          <p className="section-label">기본 템플릿</p>
+          <ul className="space-y-0.5">
             {BUILT_IN_TEMPLATES.map((t) => (
-              <TemplateItem
-                key={t.id}
-                template={t}
-                isActive={activeId === t.id}
-                onSelect={() => handleSelect(t)}
-              />
+              <TemplateItem key={t.id} template={t} isActive={activeId === t.id} onSelect={() => handleSelect(t)} />
             ))}
           </ul>
         </section>
 
-        {/* 내 템플릿 */}
         <section>
-          <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-2 px-1">
-            내 템플릿
-          </p>
+          <p className="section-label">내 템플릿</p>
           {myTemplates.length === 0 ? (
-            <p className="text-xs text-[var(--color-text-muted)] px-2 py-3 text-center">
+            <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
               + 버튼으로 hwpx 파일을 추가하세요
             </p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {myTemplates.map((t) => (
                 <TemplateItem
-                  key={t.id}
-                  template={t}
-                  isActive={activeId === t.id}
-                  onSelect={() => handleSelect(t)}
-                  onDelete={() => handleDelete(t.id)}
+                  key={t.id} template={t} isActive={activeId === t.id}
+                  onSelect={() => handleSelect(t)} onDelete={() => handleDelete(t.id)}
                 />
               ))}
             </ul>
@@ -160,36 +138,54 @@ export default function TemplatePanel() {
 }
 
 function TemplateItem({
-  template,
-  isActive,
-  onSelect,
-  onDelete,
+  template, isActive, onSelect, onDelete,
 }: {
-  template: Template;
-  isActive: boolean;
-  onSelect: () => void;
-  onDelete?: () => void;
+  template: Template; isActive: boolean; onSelect: () => void; onDelete?: () => void;
 }) {
   return (
     <li
-      className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
-        isActive
-          ? 'bg-[var(--color-brand)]/15 border border-[var(--color-brand)]/30'
-          : 'hover:bg-[var(--color-bg-surface)] border border-transparent'
-      }`}
+      className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all border"
+      style={{
+        background: isActive ? 'color-mix(in srgb, var(--color-brand) 12%, transparent)' : 'transparent',
+        borderColor: isActive ? 'color-mix(in srgb, var(--color-brand) 30%, transparent)' : 'transparent',
+      }}
       onClick={onSelect}
+      onMouseEnter={(e) => {
+        if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-surface)';
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
+      }}
     >
-      <span className="text-base flex-shrink-0">📝</span>
+      {/* 문서 아이콘 */}
+      <svg
+        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"
+        style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text-muted)' }}
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+
       <div className="flex-1 min-w-0">
-        <p className={`text-sm truncate ${isActive ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-primary)]'}`}>
+        <p
+          className="text-sm truncate"
+          style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text-primary)' }}
+        >
           {template.name}
         </p>
-        <p className="text-xs text-[var(--color-text-muted)] truncate">{template.description}</p>
+        <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+          {template.description}
+        </p>
       </div>
+
       {onDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded text-[var(--color-text-muted)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-xs"
+          className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ color: 'var(--ctp-red)' }}
           title="삭제"
         >
           ×

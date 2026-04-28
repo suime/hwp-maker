@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * 아이콘 레일 (IconRail)
- * DESIGN.md: 48px 고정 너비, 탭 전환 + 사이드바 토글
- */
-
 import type { SideTab } from '@/components/editor/EditorLayout';
 
 interface Props {
@@ -14,23 +9,67 @@ interface Props {
   onToggle: () => void;
 }
 
-const TABS: { id: SideTab; icon: string; label: string }[] = [
-  { id: 'chat', icon: '💬', label: 'AI 채팅' },
-  { id: 'template', icon: '📄', label: '템플릿' },
-  { id: 'settings', icon: '⚙', label: '설정' },
+const TABS: { id: SideTab; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'chat',
+    label: 'AI 채팅',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'template',
+    label: '템플릿',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+  },
+  {
+    id: 'settings',
+    label: '설정',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    ),
+  },
 ];
 
 export default function IconRail({ activeTab, onTabChange, sidebarOpen, onToggle }: Props) {
   return (
-    <nav className="w-12 flex-shrink-0 flex flex-col items-center bg-[var(--color-bg-panel)] border-r border-[var(--color-bg-border)] py-2 gap-1">
-      {/* 사이드바 토글 버튼 */}
+    <nav
+      className="w-12 flex-shrink-0 flex flex-col items-center py-2 gap-0.5 border-r"
+      style={{
+        background: 'var(--color-bg-panel)',
+        borderColor: 'var(--color-bg-border)',
+      }}
+    >
+      {/* 사이드바 토글 */}
       <button
         id="icon-rail-toggle"
         onClick={onToggle}
         title={sidebarOpen ? '사이드바 닫기' : '사이드바 열기'}
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)] transition-colors mb-2"
+        className="w-9 h-9 flex items-center justify-center rounded-lg mb-1 transition-colors"
+        style={{ color: 'var(--color-text-muted)' }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-surface)';
+          (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
+        }}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
           <line x1="2" y1="4" x2="14" y2="4" />
           <line x1="2" y1="8" x2="14" y2="8" />
           <line x1="2" y1="12" x2="14" y2="12" />
@@ -38,9 +77,9 @@ export default function IconRail({ activeTab, onTabChange, sidebarOpen, onToggle
       </button>
 
       {/* 구분선 */}
-      <div className="w-6 h-px bg-[var(--color-bg-border)] mb-2" />
+      <div className="w-5 h-px mb-1" style={{ background: 'var(--color-bg-border)' }} />
 
-      {/* 탭 버튼 목록 */}
+      {/* 탭 버튼들 */}
       {TABS.map((tab) => {
         const isActive = sidebarOpen && activeTab === tab.id;
         return (
@@ -49,13 +88,25 @@ export default function IconRail({ activeTab, onTabChange, sidebarOpen, onToggle
             id={`icon-rail-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
             title={tab.label}
-            className={`w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all ${
-              isActive
-                ? 'bg-[var(--color-brand)]/20 text-[var(--color-brand)]'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-secondary)]'
-            }`}
+            className="w-9 h-9 flex items-center justify-center rounded-lg transition-all"
+            style={{
+              background: isActive ? 'color-mix(in srgb, var(--color-brand) 15%, transparent)' : 'transparent',
+              color: isActive ? 'var(--color-brand)' : 'var(--color-text-muted)',
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-surface)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
+              }
+            }}
           >
-            <span className="leading-none">{tab.icon}</span>
+            {tab.icon}
           </button>
         );
       })}

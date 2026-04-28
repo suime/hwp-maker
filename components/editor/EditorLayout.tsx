@@ -1,12 +1,5 @@
 'use client';
 
-/**
- * 메인 에디터 레이아웃
- * DESIGN.md 기준:
- *   TopBar (전체 너비)
- *   └─ IconRail(48px) + SidePanel(가변, 드래그) + ResizeHandle(4px) + MainPanel(flex-1)
- */
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import TopBar from '@/components/ui/TopBar';
 import IconRail from '@/components/ui/IconRail';
@@ -30,7 +23,6 @@ export default function EditorLayout() {
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(DEFAULT_WIDTH);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // localStorage에서 너비 복원
   useEffect(() => {
@@ -41,8 +33,7 @@ export default function EditorLayout() {
     }
   }, []);
 
-  // 드래그 리사이즈 핸들러
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isResizing.current = true;
     startX.current = e.clientX;
@@ -58,7 +49,6 @@ export default function EditorLayout() {
       const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth.current + delta));
       setSidebarWidth(next);
     };
-
     const onMouseUp = () => {
       if (!isResizing.current) return;
       isResizing.current = false;
@@ -69,7 +59,6 @@ export default function EditorLayout() {
         return w;
       });
     };
-
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     return () => {
@@ -79,11 +68,10 @@ export default function EditorLayout() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full" ref={containerRef}>
+    <div className="flex flex-col h-full">
       <TopBar />
-
       <div className="flex flex-1 overflow-hidden">
-        {/* 아이콘 레일 (48px 고정) */}
+        {/* 아이콘 레일 */}
         <IconRail
           activeTab={activeTab}
           onTabChange={(tab) => {
@@ -94,11 +82,11 @@ export default function EditorLayout() {
           onToggle={() => setSidebarOpen((v) => !v)}
         />
 
-        {/* 사이드바 패널 (가변 너비) */}
+        {/* 사이드바 패널 */}
         {sidebarOpen && (
           <>
             <aside
-              className="flex flex-col flex-shrink-0 overflow-hidden border-r border-[var(--color-bg-border)]"
+              className="flex flex-col flex-shrink-0 overflow-hidden"
               style={{ width: sidebarWidth }}
             >
               {activeTab === 'chat' && <ChatPanel />}
@@ -106,12 +94,16 @@ export default function EditorLayout() {
               {activeTab === 'settings' && <SettingsPanel />}
             </aside>
 
-            {/* 드래그 리사이즈 핸들 */}
+            {/* 리사이즈 핸들 */}
             <div
-              className="w-1 flex-shrink-0 cursor-col-resize relative group"
-              onMouseDown={handleMouseDown}
+              className="w-1 flex-shrink-0 cursor-col-resize group relative"
+              style={{ background: 'var(--color-bg-border)' }}
+              onMouseDown={handleResizeMouseDown}
             >
-              <div className="absolute inset-0 group-hover:bg-[var(--color-brand)] transition-colors opacity-0 group-hover:opacity-60" />
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ background: 'var(--color-brand)' }}
+              />
             </div>
           </>
         )}
