@@ -1,108 +1,113 @@
 'use client';
 
-type ViewMode = 'edit' | 'preview';
+import { useEffect, useRef, useState } from 'react';
+
+type LoadState = 'idle' | 'loading' | 'ready' | 'error';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RhwpEditor = any;
+
+const STUDIO_URL = '/rhwp-studio/';
 
 export default function PreviewPanel() {
-  return (
-    <div
-      className="flex flex-col h-full"
-      style={{ background: 'var(--color-bg-base)' }}
-    >
-      <ViewModeBar />
-      <DocumentCanvas />
-    </div>
-  );
-}
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<RhwpEditor | null>(null);
+  // Strict Mode 이중 실행 방지
+  const initGuard = useRef(false);
+  const [state, setLoadState] = useState<LoadState>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
 
-function ViewModeBar() {
+  useEffect(() => {
+    // Strict Mode 두 번째 실행 방지
+    if (initGuard.current) return;
+    initGuard.current = true;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 혹시 남아있는 iframe 제거
+    container.innerHTML = '';
+    setLoadState('loading');
+
+    let alive = true;
+
+    import('@rhwp/editor')
+      .then(({ createEditor }) =>
+        createEditor(container, {
+          studioUrl: STUDIO_URL,
+          width: '100%',
+          height: '100%',
+        })
+      )
+      .then((editor) => {
+        if (!alive) { editor.destroy(); return; }
+        editorRef.current = editor;
+        setLoadState('ready');
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        console.error('[rhwp] 에디터 초기화 실패:', err);
+        setErrorMsg(err instanceof Error ? err.message : String(err));
+        setLoadState('error');
+      });
+
+    return () => {
+      alive = false;
+      // initGuard는 reset하지 않음 — Strict Mode 재실행 막기 위해
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
+  }, []);
+
   return (
-    <div
-      className="flex items-center justify-between px-4 h-10 border-b flex-shrink-0"
-      style={{
-        background: 'var(--color-bg-panel)',
-        borderColor: 'var(--color-bg-border)',
-      }}
-    >
-      {/* 뷰 모드 탭 */}
+    <div className="relative flex flex-col h-full" style={{ background: 'var(--color-bg-base)' }}>
+      {/* 에디터 컨테이너 */}
       <div
-        className="flex items-center gap-0.5 rounded-lg p-0.5"
-        style={{ background: 'var(--color-bg-surface)' }}
-      >
-        <ViewTab id="view-edit" label="편집" active />
-        <ViewTab id="view-preview" label="미리보기" active={false} />
-      </div>
+        ref={containerRef}
+        className="flex-1 w-full overflow-hidden"
+        style={{ opacity: state === 'ready' ? 1 : 0, transition: 'opacity 0.3s ease' }}
+      />
 
-      {/* 상태 */}
-      <span className="badge-warning text-xs">rhwp WASM 연동 대기</span>
+      {/* 로딩 / 에러 오버레이 */}
+      {state !== 'ready' && (
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-4"
+          style={{ background: 'var(--color-bg-base)' }}
+        >
+          {state !== 'error' ? (
+            <>
+              <LoadingSpinner />
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                에디터 로딩 중…
+              </p>
+            </>
+          ) : (
+            <div className="text-center px-6">
+              <p className="text-base font-medium mb-2" style={{ color: 'var(--ctp-red)' }}>
+                에디터를 불러오지 못했습니다
+              </p>
+              <p
+                className="text-xs font-mono px-3 py-2 rounded-lg"
+                style={{ color: 'var(--color-text-muted)', background: 'var(--color-bg-surface)' }}
+              >
+                {errorMsg || '알 수 없는 오류'}
+              </p>
+              <p className="text-xs mt-3" style={{ color: 'var(--color-text-muted)' }}>
+                <code>/rhwp-studio/index.html</code> 파일이 있는지 확인하세요
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function ViewTab({ id, label, active }: { id: string; label: string; active: boolean }) {
+function LoadingSpinner() {
   return (
-    <button
-      id={id}
-      className="px-3 py-1 text-xs rounded-md transition-all"
-      style={
-        active
-          ? {
-              background: 'var(--color-bg-panel)',
-              color: 'var(--color-text-primary)',
-              fontWeight: 500,
-            }
-          : {
-              background: 'transparent',
-              color: 'var(--color-text-muted)',
-            }
-      }
-    >
-      {label}
-    </button>
-  );
-}
-
-function DocumentCanvas() {
-  return (
-    <div
-      className="flex-1 overflow-auto flex justify-center py-10 px-6"
-      style={{ background: 'var(--color-doc-canvas)' }}
-    >
-      {/* A4 문서 용지 */}
-      <div
-        className="rounded-sm shadow-xl relative flex-shrink-0"
-        style={{
-          width: '210mm',
-          minHeight: '297mm',
-          padding: '25mm 20mm',
-          background: 'var(--color-doc-paper)',
-          color: '#333',
-        }}
-      >
-        {/* 플레이스홀더 */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
-          <div className="text-center opacity-[0.12]">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto mb-3 opacity-60">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            <p className="text-sm font-medium text-gray-400">
-              rhwp WASM 연동 후<br />문서가 표시됩니다
-            </p>
-          </div>
-        </div>
-
-        {/* 스켈레톤 */}
-        <div className="space-y-3 opacity-[0.06]">
-          <div className="h-7 bg-gray-500 rounded w-1/2 mx-auto mb-8" />
-          {[1, 0.88, 0.74, 1, 0.83, 0.96, 0.68].map((w, i) => (
-            <div key={i} className="h-3 bg-gray-500 rounded" style={{ width: `${w * 100}%` }} />
-          ))}
-          <div className="pt-5" />
-          {[0.62, 0.91, 1, 0.78, 0.85].map((w, i) => (
-            <div key={`b${i}`} className="h-3 bg-gray-500 rounded" style={{ width: `${w * 100}%` }} />
-          ))}
-        </div>
-      </div>
-    </div>
+    <svg className="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none"
+      style={{ color: 'var(--color-brand)' }}>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.2" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
