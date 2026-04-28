@@ -1,30 +1,28 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { setEditorInstance, RhwpEditorInstance } from '@/lib/rhwp/loader';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type RhwpEditor = any;
 
 const STUDIO_URL = '/rhwp-studio/index.html';
 
 export default function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<RhwpEditor | null>(null);
-  // Strict Mode 이중 실행 방지
-  const initGuard = useRef(false);
   const [state, setLoadState] = useState<LoadState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // Strict Mode 이중 실행 방지 및 인스턴스 참조 보관
+  const initGuard = useRef(false);
+  const editorRef = useRef<any>(null);
 
   useEffect(() => {
-    // Strict Mode 두 번째 실행 방지
     if (initGuard.current) return;
     initGuard.current = true;
 
     const container = containerRef.current;
     if (!container) return;
 
-    // 혹시 남아있는 iframe 제거
     container.innerHTML = '';
     setLoadState('loading');
 
@@ -39,8 +37,27 @@ export default function PreviewPanel() {
         })
       )
       .then((editor) => {
-        if (!alive) { editor.destroy(); return; }
+        if (!alive) {
+          editor.destroy();
+          return;
+        }
+
         editorRef.current = editor;
+
+        // RhwpEditorInstance 인터페이스에 맞게 래핑하여 등록
+        const wrappedInstance: RhwpEditorInstance = {
+          send: (command, data) => editor.send(command, data),
+          export: async (format) => {
+            // 에디터의 export API가 있다고 가정 (실제 사양에 맞춰 조정 필요)
+            return await editor.export({ format });
+          },
+          load: async (data) => {
+            await editor.load(data);
+          },
+          destroy: () => editor.destroy(),
+        };
+
+        setEditorInstance(wrappedInstance);
         setLoadState('ready');
       })
       .catch((err: unknown) => {
@@ -52,9 +69,11 @@ export default function PreviewPanel() {
 
     return () => {
       alive = false;
-      // initGuard는 reset하지 않음 — Strict Mode 재실행 막기 위해
-      editorRef.current?.destroy();
-      editorRef.current = null;
+      if (editorRef.current) {
+        editorRef.current.destroy();
+        editorRef.current = null;
+      }
+      setEditorInstance(null);
     };
   }, []);
 

@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
+import { generateContent, parseAiResponse } from '@/lib/ai/service';
+import { rhwpActions } from '@/lib/rhwp/loader';
+import { AiMessage } from '@/lib/ai/client';
 
 interface Message {
   id: string;
@@ -18,28 +22,69 @@ export default function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [activeProfile, setActiveProfileState] = useState<AiProfile>(BUILTIN_PROFILES[0]);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setActiveProfileState(getActiveProfile());
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const handleProfileChange = (id: string) => {
+    setActiveProfile(id);
+    const profile = BUILTIN_PROFILES.find(p => p.id === id);
+    if (profile) setActiveProfileState(profile);
+  };
+
   async function handleSend() {
     const text = input.trim();
     if (!text || isLoading) return;
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', content: text }]);
+
+    const userMsgId = crypto.randomUUID();
+    const assistantMsgId = crypto.randomUUID();
+
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: text }]);
     setInput('');
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: `"${text}"에 대한 내용을 문서에 반영하겠습니다.\n(AI 연동 준비 중입니다)`,
-      },
-    ]);
-    setIsLoading(false);
+
+    // 채팅 이력 구성 (최근 5개만)
+    const history: AiMessage[] = messages
+      .slice(-5)
+      .map(m => ({ role: m.role, content: m.content }));
+
+    let fullResponse = '';
+    
+    try {
+      // 어시스턴트 메시지 자리 만들기
+      setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '' }]);
+
+      await generateContent(text, history, (chunk) => {
+        fullResponse += chunk;
+        setMessages((prev) => 
+          prev.map(m => m.id === assistantMsgId ? { ...m, content: fullResponse } : m)
+        );
+      });
+
+      // 에디터에 반영
+      const cleanText = parseAiResponse(fullResponse);
+      rhwpActions.insertText(cleanText);
+
+    } catch (err: any) {
+      console.error('AI 응답 생성 실패:', err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `오류가 발생했습니다: ${err.message || '알 수 없는 에러'}`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -55,13 +100,24 @@ export default function ChatPanel() {
       style={{ background: 'var(--color-bg-panel)' }}
     >
       {/* 헤더 */}
-      <div className="panel-header">
-        <h2>AI 어시스턴트</h2>
-        <p>자연어로 문서를 작성·수정하세요</p>
+      <div className="panel-header border-b border-[var(--color-bg-border)]">
+        <div className="flex justify-between items-center mb-1">
+          <h2 className="text-sm font-bold">AI 어시스턴트</h2>
+          <select 
+            value={activeProfile.id}
+            onChange={(e) => handleProfileChange(e.target.value)}
+            className="text-[11px] bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] rounded px-1.5 py-0.5 outline-none focus:border-[var(--color-brand)]"
+          >
+            {BUILTIN_PROFILES.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1">{activeProfile.description}</p>
       </div>
 
       {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div

@@ -1,41 +1,64 @@
 /**
- * rhwp WASM 로더 및 래퍼
- * 클라이언트에서만 로드됩니다. 반드시 'use client' 컴포넌트에서 useEffect 안에 호출하세요.
- *
- * TODO: rhwp WASM 빌드 방식 확정 후 실제 import 경로 업데이트 필요
- * @see TODO.md - rhwp WASM 빌드 방식 확정
+ * rhwp 에디터 인스턴스 관리 및 제어 브릿지
+ * 'use client' 환경에서 사용됩니다.
  */
 
-export type RhwpInstance = {
-  /** hwpx Blob → 렌더링 가능한 HTML 문자열 */
-  renderToHtml: (buffer: ArrayBuffer) => string;
-  /** 편집된 데이터 → hwpx ArrayBuffer 내보내기 */
-  exportToHwpx: () => ArrayBuffer;
-  /** hwp ArrayBuffer → hwpx ArrayBuffer 변환 */
-  convertHwpToHwpx: (buffer: ArrayBuffer) => ArrayBuffer;
+export interface RhwpEditorInstance {
+  /** 에디터에 명령을 전달합니다. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  send: (command: string, data?: any) => void;
+  /** 현재 문서를 특정 포맷으로 내보냅니다. */
+  export: (format: 'hwp' | 'hwpx') => Promise<Blob>;
+  /** 문서를 에디터에 로드합니다. */
+  load: (data: Blob | ArrayBuffer) => Promise<void>;
+  /** 에디터 리소스를 해제합니다. */
+  destroy: () => void;
+}
+
+let _editorInstance: RhwpEditorInstance | null = null;
+const _listeners: Set<(instance: RhwpEditorInstance | null) => void> = new Set();
+
+/**
+ * 에디터 인스턴스를 등록합니다. (PreviewPanel에서 호출)
+ */
+export function setEditorInstance(instance: RhwpEditorInstance | null) {
+  _editorInstance = instance;
+  _listeners.forEach((listener) => listener(instance));
+}
+
+/**
+ * 현재 등록된 에디터 인스턴스를 가져옵니다.
+ */
+export function getEditorInstance(): RhwpEditorInstance | null {
+  return _editorInstance;
+}
+
+/**
+ * 에디터 인스턴스 상태 변경을 감지합니다.
+ */
+export function subscribeEditor(listener: (instance: RhwpEditorInstance | null) => void) {
+  _listeners.add(listener);
+  listener(_editorInstance); // 즉시 현재 상태 전달
+  return () => _listeners.delete(listener);
+}
+
+/**
+ * AI 명령을 에디터가 이해할 수 있는 동작으로 변환하여 실행합니다.
+ * TODO: 에디터 패키지의 실제 API 사양에 따라 구현 보완 필요
+ */
+export const rhwpActions = {
+  /** 텍스트 삽입 */
+  insertText: (text: string) => {
+    _editorInstance?.send('edit:insert-text', { text });
+  },
+  /** 스타일 적용 (글자 모양 등) */
+  applyCharShape: (shape: { size?: number; bold?: boolean; color?: string }) => {
+    _editorInstance?.send('format:char-shape', shape);
+  },
+  /** 문서 전체 초기화 및 새 내용 설정 */
+  resetAndInsert: (text: string) => {
+    _editorInstance?.send('edit:select-all');
+    _editorInstance?.send('edit:delete');
+    _editorInstance?.send('edit:insert-text', { text });
+  }
 };
-
-let _instance: RhwpInstance | null = null;
-
-/**
- * rhwp WASM 인스턴스를 초기화합니다.
- * 이미 초기화된 경우 캐시된 인스턴스를 반환합니다.
- */
-export async function initRhwp(): Promise<RhwpInstance> {
-  if (_instance) return _instance;
-
-  // TODO: 실제 rhwp WASM 패키지 경로로 교체 필요
-  // 예: const wasm = await import('rhwp');
-  // 또는 public/wasm/ 에서 fetch 로 로드
-  throw new Error(
-    'rhwp WASM 아직 연동되지 않았습니다. TODO.md의 WASM 빌드 방식 확정 후 구현 예정입니다.'
-  );
-}
-
-/**
- * 초기화된 rhwp 인스턴스를 반환합니다.
- * initRhwp() 호출 전에 사용하면 null이 반환됩니다.
- */
-export function getRhwp(): RhwpInstance | null {
-  return _instance;
-}

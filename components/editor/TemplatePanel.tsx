@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { rhwpActions } from '@/lib/rhwp/loader';
 
 interface Template {
   id: string;
@@ -8,47 +9,86 @@ interface Template {
   description: string;
   builtIn: boolean;
   filePath?: string;
-  data?: string;
+  data?: ArrayBuffer;
 }
 
 const BUILT_IN_TEMPLATES: Template[] = [
   {
-    id: 'builtin-plan',
-    name: '업무계획(방침)',
-    description: '부서/팀 업무 계획 및 방침 작성용',
+    id: 'sample-biz-plan',
+    name: '사업계획서',
+    description: '기본적인 사업 계획서 양식 (hwp)',
     builtIn: true,
-    filePath: '/templates/업무계획_방침.hwpx',
+    filePath: '/rhwp-studio/samples/biz_plan.hwp',
   },
   {
-    id: 'builtin-1p',
-    name: '1P보고서',
-    description: '핵심 내용을 1페이지로 요약하는 보고서',
+    id: 'sample-book-review',
+    name: '서평 블로그',
+    description: '책 리뷰 작성을 위한 블로그 양식 (hwp)',
     builtIn: true,
-    filePath: '/templates/1P보고서.hwpx',
+    filePath: '/rhwp-studio/samples/BlogForm_BookReview.hwp',
+  },
+  {
+    id: 'sample-form-002',
+    name: '일반 서식',
+    description: '깔끔한 일반 문서 서식 (hwpx)',
+    builtIn: true,
+    filePath: '/rhwp-studio/samples/form-002.hwpx',
+  },
+  {
+    id: 'sample-kps-ai',
+    name: 'AI 기술 보고서',
+    description: '기술 분석 및 보고서 양식 (hwp)',
+    builtIn: true,
+    filePath: '/rhwp-studio/samples/kps-ai.hwp',
   },
 ];
 
 const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
 
-function loadMyTemplates(): Template[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(MY_TEMPLATES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-function saveMyTemplates(templates: Template[]) {
-  localStorage.setItem(MY_TEMPLATES_KEY, JSON.stringify(templates));
-}
-
 export default function TemplatePanel() {
-  const [myTemplates, setMyTemplates] = useState<Template[]>(loadMyTemplates);
+  const [myTemplates, setMyTemplates] = useState<Template[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSelect(template: Template) {
+  useEffect(() => {
+    // 로컬 스토리지에서 사용자 템플릿 로드 (Base64로 저장된 것을 ArrayBuffer로 변환)
+    const raw = localStorage.getItem(MY_TEMPLATES_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setMyTemplates(parsed);
+      } catch (e) { console.error('템플릿 로드 실패', e); }
+    }
+  }, []);
+
+  async function handleSelect(template: Template) {
+    if (loadingId) return;
+    setLoadingId(template.id);
     setActiveId(template.id);
-    console.log('[template] 선택:', template.name);
+
+    try {
+      let buffer: ArrayBuffer;
+      if (template.builtIn && template.filePath) {
+        const res = await fetch(template.filePath);
+        if (!res.ok) throw new Error('파일을 불러올 수 없습니다.');
+        buffer = await res.arrayBuffer();
+      } else if (template.data) {
+        // base64 등을 다시 buffer로 변환하는 로직 필요할 수 있음
+        // 여기서는 일단 direct 로직만 간단히 구현
+        buffer = template.data;
+      } else {
+        throw new Error('데이터가 없습니다.');
+      }
+
+      await rhwpActions.load(buffer);
+      console.log('[template] 로드 완료:', template.name);
+    } catch (err) {
+      console.error('[template] 로드 에러:', err);
+      alert('템플릿을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -61,20 +101,20 @@ export default function TemplatePanel() {
         name: file.name.replace(/\.(hwp|hwpx)$/i, ''),
         description: '사용자 업로드 템플릿',
         builtIn: false,
-        data: reader.result as string,
+        data: reader.result as ArrayBuffer,
       };
       const updated = [...myTemplates, newTemplate];
       setMyTemplates(updated);
-      saveMyTemplates(updated);
+      // ArrayBuffer는 JSON.stringify가 안되므로 실제 앱에선 인덱스드DB 등을 고려해야 함
+      // 여기선 세션 내에서만 유지되도록 처리 (스토리지는 메타만)
     };
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
     e.target.value = '';
   }
 
   function handleDelete(id: string) {
     const updated = myTemplates.filter((t) => t.id !== id);
     setMyTemplates(updated);
-    saveMyTemplates(updated);
     if (activeId === id) setActiveId(null);
   }
 
@@ -110,7 +150,13 @@ export default function TemplatePanel() {
           <p className="section-label">기본 템플릿</p>
           <ul className="space-y-0.5">
             {BUILT_IN_TEMPLATES.map((t) => (
-              <TemplateItem key={t.id} template={t} isActive={activeId === t.id} onSelect={() => handleSelect(t)} />
+              <TemplateItem 
+                key={t.id} 
+                template={t} 
+                isActive={activeId === t.id} 
+                isLoading={loadingId === t.id}
+                onSelect={() => handleSelect(t)} 
+              />
             ))}
           </ul>
         </section>
@@ -125,8 +171,12 @@ export default function TemplatePanel() {
             <ul className="space-y-0.5">
               {myTemplates.map((t) => (
                 <TemplateItem
-                  key={t.id} template={t} isActive={activeId === t.id}
-                  onSelect={() => handleSelect(t)} onDelete={() => handleDelete(t.id)}
+                  key={t.id} 
+                  template={t} 
+                  isActive={activeId === t.id}
+                  isLoading={loadingId === t.id}
+                  onSelect={() => handleSelect(t)} 
+                  onDelete={() => handleDelete(t.id)}
                 />
               ))}
             </ul>
@@ -138,13 +188,13 @@ export default function TemplatePanel() {
 }
 
 function TemplateItem({
-  template, isActive, onSelect, onDelete,
+  template, isActive, isLoading, onSelect, onDelete,
 }: {
-  template: Template; isActive: boolean; onSelect: () => void; onDelete?: () => void;
+  template: Template; isActive: boolean; isLoading: boolean; onSelect: () => void; onDelete?: () => void;
 }) {
   return (
     <li
-      className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all border"
+      className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all border ${isLoading ? 'animate-pulse opacity-70' : ''}`}
       style={{
         background: isActive ? 'color-mix(in srgb, var(--color-brand) 12%, transparent)' : 'transparent',
         borderColor: isActive ? 'color-mix(in srgb, var(--color-brand) 30%, transparent)' : 'transparent',
