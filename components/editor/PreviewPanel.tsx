@@ -6,7 +6,7 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RhwpEditor = any;
 
-const STUDIO_URL = '/rhwp-studio/';
+const STUDIO_URL = '/rhwp-studio/index.html';
 
 export default function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
