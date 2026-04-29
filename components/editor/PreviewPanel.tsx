@@ -46,13 +46,22 @@ export default function PreviewPanel() {
 
         // RhwpEditorInstance 인터페이스에 맞게 래핑하여 등록
         const wrappedInstance: RhwpEditorInstance = {
-          send: (command, data) => editor.send(command, data),
+          send: (command, data) => editor.send && editor.send(command, data),
           export: async (format) => {
-            // 에디터의 export API가 있다고 가정 (실제 사양에 맞춰 조정 필요)
-            return await editor.export({ format });
+            if (typeof editor.export === 'function') {
+              return await editor.export({ format });
+            }
+            throw new Error('내보내기 기능이 구현되지 않았습니다.');
           },
           load: async (data) => {
-            await editor.load(data);
+            // @rhwp/editor 패키지 명세 확인 결과 메서드명이 loadFile 임
+            if (typeof editor.loadFile === 'function') {
+              await editor.loadFile(data);
+            } else if (typeof editor.load === 'function') {
+              await editor.load(data);
+            } else {
+              throw new Error('에디터에 로드 기능이 없습니다.');
+            }
           },
           destroy: () => editor.destroy(),
         };

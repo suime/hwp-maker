@@ -60,5 +60,16 @@ export const rhwpActions = {
     _editorInstance?.send('edit:select-all');
     _editorInstance?.send('edit:delete');
     _editorInstance?.send('edit:insert-text', { text });
+  },
+  /** 문서 로드 (ArrayBuffer/Blob) */
+  load: async (data: Blob | ArrayBuffer) => {
+    if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
+    // PreviewPanel에서 래핑된 인스턴스의 load 메서드(loadFile 호출)를 실행
+    await _editorInstance.load(data);
+  },
+  /** 문서 내보내기 */
+  export: async (format: 'hwp' | 'hwpx') => {
+    if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
+    return await _editorInstance.export(format);
   }
 };

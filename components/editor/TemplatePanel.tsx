@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { rhwpActions } from '@/lib/rhwp/loader';
+import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
 
 interface Template {
   id: string;
@@ -12,58 +12,51 @@ interface Template {
   data?: ArrayBuffer;
 }
 
-const BUILT_IN_TEMPLATES: Template[] = [
-  {
-    id: 'sample-biz-plan',
-    name: '사업계획서',
-    description: '기본적인 사업 계획서 양식 (hwp)',
-    builtIn: true,
-    filePath: '/rhwp-studio/samples/biz_plan.hwp',
-  },
-  {
-    id: 'sample-book-review',
-    name: '서평 블로그',
-    description: '책 리뷰 작성을 위한 블로그 양식 (hwp)',
-    builtIn: true,
-    filePath: '/rhwp-studio/samples/BlogForm_BookReview.hwp',
-  },
-  {
-    id: 'sample-form-002',
-    name: '일반 서식',
-    description: '깔끔한 일반 문서 서식 (hwpx)',
-    builtIn: true,
-    filePath: '/rhwp-studio/samples/form-002.hwpx',
-  },
-  {
-    id: 'sample-kps-ai',
-    name: 'AI 기술 보고서',
-    description: '기술 분석 및 보고서 양식 (hwp)',
-    builtIn: true,
-    filePath: '/rhwp-studio/samples/kps-ai.hwp',
-  },
-];
-
+// 기존 하드코딩 목록 제거 (API에서 로드)
 const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
 
 export default function TemplatePanel() {
+  const [builtinTemplates, setBuiltinTemplates] = useState<Template[]>([]);
   const [myTemplates, setMyTemplates] = useState<Template[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [isEditorReady, setIsEditorReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // 로컬 스토리지에서 사용자 템플릿 로드 (Base64로 저장된 것을 ArrayBuffer로 변환)
+    // 0. 에디터 준비 상태 구독
+    const unsubscribe = subscribeEditor((instance) => {
+      setIsEditorReady(!!instance);
+    });
+
+    // 1. 서버의 템플릿 목록 로드
+    fetch('/api/templates')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setBuiltinTemplates(data);
+        }
+      })
+      .catch(err => console.error('기본 템플릿 로드 실패:', err));
+
+    // 2. 로컬 스토리지에서 사용자 템플릿 로드
     const raw = localStorage.getItem(MY_TEMPLATES_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
         setMyTemplates(parsed);
-      } catch (e) { console.error('템플릿 로드 실패', e); }
+      } catch (e) { console.error('사용자 템플릿 로드 실패', e); }
     }
+
+    return () => unsubscribe();
   }, []);
 
   async function handleSelect(template: Template) {
     if (loadingId) return;
+    if (!isEditorReady) {
+      alert('에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.');
+      return;
+    }
     setLoadingId(template.id);
     setActiveId(template.id);
 
@@ -149,15 +142,21 @@ export default function TemplatePanel() {
         <section>
           <p className="section-label">기본 템플릿</p>
           <ul className="space-y-0.5">
-            {BUILT_IN_TEMPLATES.map((t) => (
-              <TemplateItem 
-                key={t.id} 
-                template={t} 
-                isActive={activeId === t.id} 
-                isLoading={loadingId === t.id}
-                onSelect={() => handleSelect(t)} 
-              />
-            ))}
+            {builtinTemplates.length === 0 ? (
+              <p className="text-[10px] px-2 py-2 text-[var(--color-text-muted)] italic">
+                불러올 수 있는 기본 양식이 없습니다.
+              </p>
+            ) : (
+              builtinTemplates.map((t) => (
+                <TemplateItem 
+                  key={t.id} 
+                  template={t} 
+                  isActive={activeId === t.id} 
+                  isLoading={loadingId === t.id}
+                  onSelect={() => handleSelect(t)} 
+                />
+              ))
+            )}
           </ul>
         </section>
 
