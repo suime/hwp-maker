@@ -8,6 +8,7 @@ import type { AiConfig } from '@/lib/ai/client';
 const STORAGE_KEY = 'hwp-maker:ai-config';
 
 const DEFAULT_CONFIG: AiConfig = {
+  provider: 'ollama',
   baseUrl: 'http://localhost:11434/v1',
   apiKey: '',
   model: 'llama3',
@@ -27,6 +28,7 @@ export function loadAiConfig(): AiConfig {
 export function saveAiConfig(config: AiConfig): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  window.dispatchEvent(new Event('ai-config-changed'));
 }
 
 export function clearAiConfig(): void {

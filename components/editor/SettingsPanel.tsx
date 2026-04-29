@@ -16,7 +16,7 @@ export default function SettingsPanel({
   sidebarPosition = 'left',
   onChangeSidebarPosition,
 }: SettingsPanelProps) {
-  const [config, setConfig] = useState<AiConfig>({ baseUrl: '', apiKey: '', model: '' });
+  const [config, setConfig] = useState<AiConfig>({ provider: 'ollama', baseUrl: '', apiKey: '', model: '' });
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [saved, setSaved] = useState(false);
@@ -63,32 +63,63 @@ export default function SettingsPanel({
 
           <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-              Base URL
+              제공자 (Provider)
             </label>
-            <input
-              id="settings-base-url"
-              type="url"
-              value={config.baseUrl}
-              onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
-              placeholder="http://localhost:11434/v1"
-              className="input"
-            />
+            <select
+              value={config.provider || 'ollama'}
+              onChange={(e) => {
+                const provider = e.target.value as any;
+                setConfig(prev => {
+                  const newConfig = { ...prev, provider };
+                  if (provider === 'openai') {
+                    newConfig.baseUrl = 'https://api.openai.com/v1';
+                    if (!newConfig.model || newConfig.model.includes('llama')) newConfig.model = 'gpt-4o';
+                  } else if (provider === 'ollama') {
+                    newConfig.baseUrl = 'http://localhost:11434/v1';
+                    if (!newConfig.model || newConfig.model.includes('gpt')) newConfig.model = 'llama3';
+                  }
+                  return newConfig;
+                });
+              }}
+              className="w-full text-sm bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]"
+            >
+              <option value="ollama">Ollama (로컬)</option>
+              <option value="openai">OpenAI</option>
+              <option value="custom">사용자 정의 (Custom)</option>
+            </select>
           </div>
 
-          <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-              API Key{' '}
-              <span style={{ color: 'var(--color-text-muted)' }}>(Ollama는 비워도 됨)</span>
-            </label>
-            <input
-              id="settings-api-key"
-              type="password"
-              value={config.apiKey ?? ''}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder="sk-..."
-              className="input"
-            />
-          </div>
+          {(config.provider === 'ollama' || config.provider === 'custom') && (
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                Base URL
+              </label>
+              <input
+                id="settings-base-url"
+                type="url"
+                value={config.baseUrl}
+                onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
+                placeholder="http://localhost:11434/v1"
+                className="input"
+              />
+            </div>
+          )}
+
+          {(config.provider === 'openai' || config.provider === 'custom') && (
+            <div>
+              <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                API Key
+              </label>
+              <input
+                id="settings-api-key"
+                type="password"
+                value={config.apiKey ?? ''}
+                onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+                placeholder="sk-..."
+                className="input"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
@@ -99,7 +130,7 @@ export default function SettingsPanel({
               type="text"
               value={config.model}
               onChange={(e) => setConfig({ ...config, model: e.target.value })}
-              placeholder="llama3 / gpt-4o / ..."
+              placeholder={config.provider === 'openai' ? 'gpt-4o' : 'llama3'}
               className="input"
             />
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
 import { loadAiConfig } from '@/lib/ai/config';
@@ -27,11 +27,22 @@ export default function ChatPanel() {
   const [isDragging, setIsDragging] = useState(false);
   const [processingFiles, setProcessingFiles] = useState(false);
   
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
+  const [input, setInput] = useState('');
+  const [currentConfig, setCurrentConfig] = useState(() => loadAiConfig());
+  
+  useEffect(() => {
+    const handleConfigChange = () => setCurrentConfig(loadAiConfig());
+    window.addEventListener('ai-config-changed', handleConfigChange);
+    return () => window.removeEventListener('ai-config-changed', handleConfigChange);
+  }, []);
+  
+  const { messages, sendMessage, status, setMessages } = useChat({
+    // @ts-ignore - useChat v3 options
     api: '/api/chat',
     initialMessages: [WELCOME],
+    // @ts-ignore - useChat v3 options
     body: {
-      config: loadAiConfig(),
+      config: currentConfig,
       systemPrompt: activeProfile.systemPrompt,
       attachments: attachments,
     },
@@ -44,6 +55,8 @@ export default function ChatPanel() {
       console.error('AI 응답 에러:', error);
     }
   });
+
+  const isLoading = status === 'submitted' || status === 'streaming';
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
@@ -83,15 +96,20 @@ export default function ChatPanel() {
       setAttachments(prev => [...prev, ...succeeded]);
     }
     if (errors.length > 0) {
-      // 오류 메시지를 시스템 메시지로 추가
-      append({
-        role: 'system',
-        content: `파일 처리 오류:\n${errors.join('\n')}`,
-      });
+      // 오류 메시지를 어시스턴트 시스템 메시지로 추가할 수 없으므로(append 없음)
+      // messages에 직접 추가
+      setMessages(prev => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'system',
+          content: `파일 처리 오류:\n${errors.join('\n')}`,
+        }
+      ]);
     }
 
     setProcessingFiles(false);
-  }, []);
+  }, [setMessages]);
 
   /** Ctrl+V 이미지 붙여넣기 */
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
@@ -135,22 +153,6 @@ export default function ChatPanel() {
   const removeAttachment = (id: string) => {
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
-
-  async function handleSend(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const text = input.trim();
-    if ((!text && attachments.length === 0) || isLoading) return;
-
-    handleSubmit(e as any);
-    setAttachments([]); // 전송 후 첨부파일 초기화
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }
 
   const canSend = ((input || '').trim().length > 0 || attachments.length > 0) && !isLoading;
 
@@ -218,7 +220,6 @@ export default function ChatPanel() {
                     }
               }
             >
-              {/* Vercel AI SDK에는 첨부파일 객체가 사용자 정의 필드로 들어가지 않을 수 있어 임시로 생략 */}
               {msg.content && <span>{msg.content}</span>}
             </div>
           </div>
@@ -259,8 +260,24 @@ export default function ChatPanel() {
         </div>
       )}
 
-      {/* 입력창 */}
-      <div
+      {/* 입력창 (Form 기반으로 변경) */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!canSend) return;
+          sendMessage(
+            { role: 'user', content: input.trim() },
+            {
+              body: {
+                config: currentConfig,
+                systemPrompt: activeProfile.systemPrompt,
+                attachments: attachments,
+              },
+            }
+          );
+          setInput('');
+          setAttachments([]); // 전송 후 첨부파일 초기화
+        }}
         className="p-3 border-t flex gap-2 items-end"
         style={{ borderColor: 'var(--color-bg-border)' }}
       >
@@ -268,8 +285,13 @@ export default function ChatPanel() {
         <textarea
           id="chat-input"
           value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
           onPaste={handlePaste}
           placeholder="명령 입력 (Enter 전송, Shift+Enter 줄바꿈)"
           rows={2}
@@ -277,13 +299,13 @@ export default function ChatPanel() {
         />
         <button
           id="chat-send"
-          onClick={handleSend}
+          type="submit"
           disabled={!canSend}
           className="btn btn-primary flex-shrink-0"
         >
           전송
         </button>
-      </div>
+      </form>
     </div>
   );
 }

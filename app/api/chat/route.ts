@@ -6,7 +6,10 @@ export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const { messages, config, systemPrompt, attachments } = await req.json();
+    const body = await req.json();
+    console.log('Received Chat API Request Body:', JSON.stringify(body, null, 2));
+    
+    const { messages, config, systemPrompt, attachments } = body;
 
     const baseUrl = config?.baseUrl || process.env.OPENAI_API_BASE_URL || 'https://api.openai.com/v1';
     const apiKey = config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
@@ -59,7 +62,29 @@ export async function POST(req: Request) {
       messages: coreMessages,
     });
 
-    return result.toDataStreamResponse();
+    // v3 클라이언트(Data Stream Protocol)와의 호환성을 위해 수동으로 스트림 구성
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of result.textStream) {
+            // Data Stream Protocol 형식: 0:"텍스트"\n
+            controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
+          }
+        } catch (e) {
+          console.error('Stream error:', e);
+        } finally {
+          controller.close();
+        }
+      }
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'x-vercel-ai-data-stream': 'v1',
+      },
+    });
   } catch (error: any) {
     console.error('Chat API Error:', error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });

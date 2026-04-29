@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import ThemeScript from '@/components/ui/ThemeScript';
+import Script from 'next/script';
 import './globals.css';
 
 const geistSans = Geist({
@@ -32,7 +32,19 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <ThemeScript />
+        <Script id="theme-script" strategy="beforeInteractive">
+          {`
+            (function() {
+              try {
+                var stored = localStorage.getItem('hwp-maker:theme');
+                var theme = stored === 'latte' || stored === 'mocha'
+                  ? stored
+                  : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'mocha' : 'latte');
+                document.documentElement.setAttribute('data-theme', theme);
+              } catch(e) {}
+            })();
+          `}
+        </Script>
       </head>
       <body className="h-full flex flex-col">
         {children}

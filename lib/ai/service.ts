@@ -107,6 +107,6 @@ export async function generateContent(
  * AI 응답에서 에디터 명령을 추출하거나 텍스트를 정제합니다.
  * (향후 AI가 JSON 구조로 응답할 경우를 대비)
  */
-export function parseAiResponse(content: string) {
-  return content.trim();
+export function parseAiResponse(content?: string) {
+  return (content || '').trim();
 }

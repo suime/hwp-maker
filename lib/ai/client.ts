@@ -4,7 +4,10 @@
  * 직접 fetch를 쓰지 말고 이 모듈을 통해 호출하세요.
  */
 
+export type AiProviderType = 'openai' | 'ollama' | 'custom';
+
 export interface AiConfig {
+  provider: AiProviderType;
   baseUrl: string;
   apiKey?: string;
   model: string;
