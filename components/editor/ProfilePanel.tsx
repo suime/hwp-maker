@@ -9,7 +9,8 @@ import {
   setActiveProfile,
   profileToYaml,
   yamlToProfile,
-  AiProfile
+  AiProfile,
+  BUILTIN_PROFILES
 } from '@/lib/ai/profiles';
 
 export default function ProfilePanel() {
@@ -56,7 +57,12 @@ export default function ProfilePanel() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('이 프로필을 삭제하시겠습니까?')) {
+    const isBuiltin = BUILTIN_PROFILES.some(p => p.id === id);
+    const msg = isBuiltin 
+      ? '이 프로필을 초기 상태로 되돌리시겠습니까?' 
+      : '이 프로필을 삭제하시겠습니까?';
+      
+    if (confirm(msg)) {
       deleteCustomProfile(id);
       refresh();
     }
@@ -105,13 +111,14 @@ export default function ProfilePanel() {
         <div className="flex gap-1">
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)]"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-surface2)] text-[var(--color-text-primary)] transition-colors"
+            style={{ background: 'var(--color-bg-surface)' }}
             title="YAML 가져오기"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </button>
           <button 
@@ -151,32 +158,35 @@ export default function ProfilePanel() {
             <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button 
                 onClick={(e) => { e.stopPropagation(); handleExport(p); }}
-                className="w-6 h-6 flex items-center justify-center rounded bg-white dark:bg-zinc-800 border border-[var(--color-bg-border)] shadow-sm hover:text-[var(--color-brand)]"
+                className="w-6 h-6 flex items-center justify-center rounded border border-[var(--color-bg-border)] shadow-sm hover:text-[var(--color-brand)] transition-colors"
+                style={{ background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
                 title="YAML 내보내기"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
               </button>
-              {p.isCustom && (
-                <>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setEditingProfile(p); }}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-white dark:bg-zinc-800 border border-[var(--color-bg-border)] shadow-sm hover:text-[var(--color-brand)]"
-                    title="수정"
-                  >
-                    ✎
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-white dark:bg-zinc-800 border border-[var(--color-bg-border)] shadow-sm hover:text-red-500"
-                    title="삭제"
-                  >
-                    ×
-                  </button>
-                </>
+              
+              <button 
+                onClick={(e) => { e.stopPropagation(); setEditingProfile(p); }}
+                className="w-6 h-6 flex items-center justify-center rounded border border-[var(--color-bg-border)] shadow-sm hover:text-[var(--color-brand)] transition-colors"
+                style={{ background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
+                title="수정"
+              >
+                ✎
+              </button>
+
+              {(p.isCustom || BUILTIN_PROFILES.some(bp => bp.id === p.id && getAllProfiles().some(ap => ap.id === bp.id && ap.isCustom))) && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
+                  className="w-6 h-6 flex items-center justify-center rounded border border-[var(--color-bg-border)] shadow-sm hover:text-red-500 transition-colors"
+                  style={{ background: 'var(--color-bg-surface)', color: 'var(--color-text-primary)' }}
+                  title={p.isCustom && !BUILTIN_PROFILES.some(bp => bp.id === p.id) ? "삭제" : "초기화"}
+                >
+                  {p.isCustom && !BUILTIN_PROFILES.some(bp => bp.id === p.id) ? '×' : '↺'}
+                </button>
               )}
             </div>
           </div>

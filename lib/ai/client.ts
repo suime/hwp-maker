@@ -12,7 +12,7 @@ export interface AiConfig {
 
 export interface AiMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | any[];
 }
 
 export interface AiCompletionOptions {

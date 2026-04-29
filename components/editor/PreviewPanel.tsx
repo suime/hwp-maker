@@ -69,6 +69,9 @@ export default function PreviewPanel() {
 
     return () => {
       alive = false;
+      // ✅ React Strict Mode double-invoke 대응: cleanup 시 initGuard 리셋
+      // 이렇게 해야 remount 시 에디터를 다시 초기화할 수 있습니다.
+      initGuard.current = false;
       if (editorRef.current) {
         editorRef.current.destroy();
         editorRef.current = null;

@@ -73,8 +73,13 @@ export function getAllProfiles(): AiProfile[] {
   if (typeof window === 'undefined') return BUILTIN_PROFILES;
   try {
     const raw = localStorage.getItem(CUSTOM_PROFILES_KEY);
-    const custom = raw ? JSON.parse(raw) : [];
-    return [...BUILTIN_PROFILES, ...custom];
+    const custom: AiProfile[] = raw ? JSON.parse(raw) : [];
+    
+    // 내장 프로필 중 커스텀에 의해 덮어씌워지지 않은 것만 필터링
+    const customIds = new Set(custom.map(p => p.id));
+    const filteredBuiltin = BUILTIN_PROFILES.filter(p => !customIds.has(p.id));
+    
+    return [...filteredBuiltin, ...custom];
   } catch {
     return BUILTIN_PROFILES;
   }

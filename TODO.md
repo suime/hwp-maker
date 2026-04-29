@@ -4,6 +4,12 @@
 
 ### 🔧 기술 과제
 
+- [x] **채팅 첨부파일 기능**
+  - [x] 데이터 모델 및 파일 리더 유틸 (`types/attachment.ts`, `lib/attachment/reader.ts`)
+  - [x] UI 컴포넌트 (`AttachButton`, `AttachmentPreview`, `MessageAttachment`)
+  - [x] ChatPanel 통합 (드래그&드롭, Ctrl+V, 상태 관리)
+  - [x] AI 서비스 통합 (Vision API 지원 및 텍스트 컨텍스트 주입)
+
 - [ ] **AI 양식(스타일) 정의 방법**
   - 옵션 A: JSON 템플릿으로 양식 정의
   - 옵션 B: 시스템 프롬프트에 양식 고정
