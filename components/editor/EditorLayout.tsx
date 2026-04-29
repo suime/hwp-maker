@@ -12,6 +12,7 @@ import PreviewPanel from '@/components/editor/PreviewPanel';
 export type SideTab = 'chat' | 'template' | 'profile' | 'settings';
 
 const SIDEBAR_WIDTH_KEY = 'hwp-maker:sidebar-width';
+const SIDEBAR_POS_KEY = 'hwp-maker:sidebar-position';
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 520;
@@ -20,18 +21,29 @@ export default function EditorLayout() {
   const [activeTab, setActiveTab] = useState<SideTab>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
 
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(DEFAULT_WIDTH);
+  const mainRef = useRef<HTMLElement>(null);
 
-  // localStorage에서 너비 복원
+  // localStorage에서 설정 복원
   useEffect(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (saved) {
-      const w = parseInt(saved, 10);
+    const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (savedWidth) {
+      const w = parseInt(savedWidth, 10);
       if (w >= MIN_WIDTH && w <= MAX_WIDTH) setSidebarWidth(w);
     }
+    const savedPos = localStorage.getItem(SIDEBAR_POS_KEY);
+    if (savedPos === 'left' || savedPos === 'right') {
+      setSidebarPosition(savedPos);
+    }
+  }, []);
+
+  const handleSidebarPositionChange = useCallback((pos: 'left' | 'right') => {
+    setSidebarPosition(pos);
+    localStorage.setItem(SIDEBAR_POS_KEY, pos);
   }, []);
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
@@ -41,13 +53,17 @@ export default function EditorLayout() {
     startWidth.current = sidebarWidth;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    if (mainRef.current) mainRef.current.style.pointerEvents = 'none';
   }, [sidebarWidth]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!isResizing.current) return;
       const delta = e.clientX - startX.current;
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth.current + delta));
+      const nextWidth = sidebarPosition === 'right'
+        ? startWidth.current - delta
+        : startWidth.current + delta;
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, nextWidth));
       setSidebarWidth(next);
     };
     const onMouseUp = () => {
@@ -55,6 +71,7 @@ export default function EditorLayout() {
       isResizing.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      if (mainRef.current) mainRef.current.style.pointerEvents = '';
       setSidebarWidth((w) => {
         localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w));
         return w;
@@ -66,12 +83,12 @@ export default function EditorLayout() {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, []);
+  }, [sidebarPosition]);
 
   return (
     <div className="flex flex-col h-full">
       <TopBar />
-      <div className="flex flex-1 overflow-hidden">
+      <div className={`flex flex-1 overflow-hidden ${sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
         {/* 아이콘 레일 */}
         <IconRail
           activeTab={activeTab}
@@ -93,7 +110,12 @@ export default function EditorLayout() {
               {activeTab === 'chat' && <ChatPanel />}
               {activeTab === 'template' && <TemplatePanel />}
               {activeTab === 'profile' && <ProfilePanel />}
-              {activeTab === 'settings' && <SettingsPanel />}
+              {activeTab === 'settings' && (
+                <SettingsPanel
+                  sidebarPosition={sidebarPosition}
+                  onChangeSidebarPosition={handleSidebarPositionChange}
+                />
+              )}
             </aside>
 
             {/* 리사이즈 핸들 */}
@@ -111,7 +133,7 @@ export default function EditorLayout() {
         )}
 
         {/* 메인 패널 */}
-        <main className="flex-1 overflow-hidden">
+        <main ref={mainRef} className="flex-1 overflow-hidden">
           <PreviewPanel />
         </main>
       </div>

@@ -1,37 +1,50 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useChat } from '@ai-sdk/react';
 import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
-import { generateContent, parseAiResponse } from '@/lib/ai/service';
+import { loadAiConfig } from '@/lib/ai/config';
+import { parseAiResponse } from '@/lib/ai/service';
 import { rhwpActions } from '@/lib/rhwp/loader';
-import { AiMessage } from '@/lib/ai/client';
 import type { Attachment } from '@/types/attachment';
 import { processFile } from '@/lib/attachment/reader';
 import AttachButton from './AttachButton';
 import AttachmentPreview from './AttachmentPreview';
 import MessageAttachment from './MessageAttachment';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  attachments?: Attachment[];
-}
+// MessageAttachment type이 필요없어지면 제거
+// interface Message { ... }
 
-const WELCOME: Message = {
+const WELCOME = {
   id: 'welcome',
-  role: 'assistant',
+  role: 'assistant' as const,
   content: '안녕하세요! hwp-maker AI 어시스턴트입니다.\n\n문서에 넣고 싶은 내용을 자연어로 입력하거나, 📎 버튼으로 참고 파일을 첨부해 보세요.\n예: "첨부한 보고서를 바탕으로 회의록을 작성해줘"',
 };
 
 export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([WELCOME]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [activeProfile, setActiveProfileState] = useState<AiProfile>(BUILTIN_PROFILES[0]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [processingFiles, setProcessingFiles] = useState(false);
+  
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
+    api: '/api/chat',
+    initialMessages: [WELCOME],
+    body: {
+      config: loadAiConfig(),
+      systemPrompt: activeProfile.systemPrompt,
+      attachments: attachments,
+    },
+    onFinish: (message) => {
+      // 에디터에 반영
+      const cleanText = parseAiResponse(message.content);
+      rhwpActions.insertText(cleanText);
+    },
+    onError: (error) => {
+      console.error('AI 응답 에러:', error);
+    }
+  });
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -70,15 +83,11 @@ export default function ChatPanel() {
       setAttachments(prev => [...prev, ...succeeded]);
     }
     if (errors.length > 0) {
-      // 오류 메시지를 어시스턴트 메시지로 표시
-      setMessages(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `파일 처리 오류:\n${errors.join('\n')}`,
-        },
-      ]);
+      // 오류 메시지를 시스템 메시지로 추가
+      append({
+        role: 'system',
+        content: `파일 처리 오류:\n${errors.join('\n')}`,
+      });
     }
 
     setProcessingFiles(false);
@@ -127,56 +136,13 @@ export default function ChatPanel() {
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
-  async function handleSend() {
+  async function handleSend(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     const text = input.trim();
     if ((!text && attachments.length === 0) || isLoading) return;
 
-    const userMsgId = crypto.randomUUID();
-    const assistantMsgId = crypto.randomUUID();
-    const currentAttachments = [...attachments];
-
-    setMessages(prev => [
-      ...prev,
-      { id: userMsgId, role: 'user', content: text, attachments: currentAttachments },
-    ]);
-    setInput('');
-    setAttachments([]);
-    setIsLoading(true);
-
-    // 채팅 이력 구성 (최근 5개만, 텍스트만)
-    const history: AiMessage[] = messages
-      .slice(-5)
-      .map(m => ({ role: m.role, content: m.content }));
-
-    let fullResponse = '';
-
-    try {
-      setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '' }]);
-
-      await generateContent(text, history, currentAttachments, (chunk) => {
-        fullResponse += chunk;
-        setMessages(prev =>
-          prev.map(m => m.id === assistantMsgId ? { ...m, content: fullResponse } : m)
-        );
-      });
-
-      // 에디터에 반영
-      const cleanText = parseAiResponse(fullResponse);
-      rhwpActions.insertText(cleanText);
-
-    } catch (err: unknown) {
-      console.error('AI 응답 생성 실패:', err);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `오류가 발생했습니다: ${err instanceof Error ? err.message : '알 수 없는 에러'}`,
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+    handleSubmit(e as any);
+    setAttachments([]); // 전송 후 첨부파일 초기화
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -186,7 +152,7 @@ export default function ChatPanel() {
     }
   }
 
-  const canSend = (input.trim().length > 0 || attachments.length > 0) && !isLoading;
+  const canSend = ((input || '').trim().length > 0 || attachments.length > 0) && !isLoading;
 
   return (
     <div
@@ -252,10 +218,7 @@ export default function ChatPanel() {
                     }
               }
             >
-              {/* 첨부파일 표시 */}
-              {msg.attachments && msg.attachments.length > 0 && (
-                <MessageAttachment attachments={msg.attachments} />
-              )}
+              {/* Vercel AI SDK에는 첨부파일 객체가 사용자 정의 필드로 들어가지 않을 수 있어 임시로 생략 */}
               {msg.content && <span>{msg.content}</span>}
             </div>
           </div>
@@ -305,7 +268,7 @@ export default function ChatPanel() {
         <textarea
           id="chat-input"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder="명령 입력 (Enter 전송, Shift+Enter 줄바꿈)"

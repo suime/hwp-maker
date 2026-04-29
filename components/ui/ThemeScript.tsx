@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * 테마 초기화 — 하이드레이션 플래시 방지
  * layout.tsx <head>에 인라인 스크립트로 삽입
@@ -16,5 +14,6 @@ export default function ThemeScript() {
       } catch(e) {}
     })();
   `;
-  return <script dangerouslySetInnerHTML={{ __html: script }} />;
+  // eslint-disable-next-line @next/next/no-assign-module-variable, @next/next/no-sync-scripts
+  return <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: script }} />;
 }

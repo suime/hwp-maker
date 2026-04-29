@@ -7,7 +7,15 @@ import type { AiConfig } from '@/lib/ai/client';
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
 
-export default function SettingsPanel() {
+interface SettingsPanelProps {
+  sidebarPosition?: 'left' | 'right';
+  onChangeSidebarPosition?: (pos: 'left' | 'right') => void;
+}
+
+export default function SettingsPanel({
+  sidebarPosition = 'left',
+  onChangeSidebarPosition,
+}: SettingsPanelProps) {
   const [config, setConfig] = useState<AiConfig>({ baseUrl: '', apiKey: '', model: '' });
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [testMessage, setTestMessage] = useState('');
@@ -124,6 +132,31 @@ export default function SettingsPanel() {
         {/* 편집기 설정 */}
         <section className="space-y-3">
           <p className="section-label">편집기 설정</p>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>사이드바 위치</span>
+            <div className="flex bg-surface rounded-lg p-1" style={{ background: 'var(--color-bg-surface)' }}>
+              <button
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${sidebarPosition === 'left' ? 'shadow-sm' : ''}`}
+                style={{
+                  background: sidebarPosition === 'left' ? 'var(--color-bg-base)' : 'transparent',
+                  color: sidebarPosition === 'left' ? 'var(--color-text-base)' : 'var(--color-text-muted)'
+                }}
+                onClick={() => onChangeSidebarPosition?.('left')}
+              >
+                왼쪽
+              </button>
+              <button
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${sidebarPosition === 'right' ? 'shadow-sm' : ''}`}
+                style={{
+                  background: sidebarPosition === 'right' ? 'var(--color-bg-base)' : 'transparent',
+                  color: sidebarPosition === 'right' ? 'var(--color-text-base)' : 'var(--color-text-muted)'
+                }}
+                onClick={() => onChangeSidebarPosition?.('right')}
+              >
+                오른쪽
+              </button>
+            </div>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>자동 저장</span>
             <button

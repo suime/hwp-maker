@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.54",
+    "@ai-sdk/react": "^3.0.171",
     "@rhwp/editor": "^0.7.7",
+    "ai": "^6.0.169",
     "jszip": "^3.10.1",
     "next": "16.2.4",
     "pdfjs-dist": "^5.7.284",
