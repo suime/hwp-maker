@@ -1,16 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { ChangeEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { loadAiConfig } from '@/lib/ai/config';
 import { stripThinkTags } from '@/lib/ai/rhwpCommands';
 import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
 import {
+  evaluateTemplateVariable,
   interpolateTemplateString,
   normalizeTemplateVariableValues,
+  parseAdvancedTemplateYaml,
   resolveTemplateVariableOptions,
+  serializeAdvancedTemplateYaml,
   type AdvancedTemplateVariable,
+  type AdvancedTemplateVariableType,
 } from '@/lib/templates/advanced';
 import {
+  createDocumentVariablesState,
   loadDocumentVariables,
   saveDocumentVariables,
   subscribeDocumentVariables,
@@ -23,6 +28,7 @@ export default function DocumentVariablesPanel() {
   const [isApplying, setIsApplying] = useState(false);
   const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(true);
   const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const refresh = () => setDocumentVariables(loadDocumentVariables());
@@ -69,6 +75,160 @@ export default function DocumentVariablesPanel() {
     };
     setDocumentVariables(next);
     saveDocumentVariables(next);
+  }
+
+  function updateDocumentVariables(next: ActiveDocumentVariables) {
+    setDocumentVariables(next);
+    saveDocumentVariables(next);
+  }
+
+  function createEmptyDocumentVariables() {
+    const next = createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
+      author: '',
+      description: '',
+      systemPrompt: '',
+      variables: [],
+    });
+    updateDocumentVariables(next);
+  }
+
+  function createVariableName() {
+    const existing = new Set(documentVariables?.definition.variables.map((variable) => variable.name));
+    let index = (existing?.size ?? 0) + 1;
+    let name = `variable${index}`;
+    while (existing?.has(name)) {
+      index += 1;
+      name = `variable${index}`;
+    }
+    return name;
+  }
+
+  function handleAddVariable() {
+    if (!documentVariables) {
+      const name = 'variable1';
+      const variable: AdvancedTemplateVariable = {
+        name,
+        label: '새 변수',
+        type: 'text',
+        defaultValue: '',
+        options: [],
+        optionRules: [],
+        description: '',
+      };
+      updateDocumentVariables(createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
+        author: '',
+        description: '',
+        systemPrompt: '',
+        variables: [variable],
+      }));
+      return;
+    }
+
+    const name = createVariableName();
+    const variable: AdvancedTemplateVariable = {
+      name,
+      label: '새 변수',
+      type: 'text',
+      defaultValue: '',
+      options: [],
+      optionRules: [],
+      description: '',
+    };
+    updateDocumentVariables({
+      ...documentVariables,
+      definition: {
+        ...documentVariables.definition,
+        variables: [...documentVariables.definition.variables, variable],
+      },
+      values: {
+        ...documentVariables.values,
+        [name]: evaluateTemplateVariable(variable, documentVariables.values),
+      },
+    });
+  }
+
+  function handleUpdateVariable(index: number, nextVariable: AdvancedTemplateVariable) {
+    if (!documentVariables) return;
+
+    const current = documentVariables.definition.variables[index];
+    if (!current) return;
+
+    const name = normalizeVariableName(nextVariable.name) || current.name;
+    const duplicate = documentVariables.definition.variables.some((variable, variableIndex) =>
+      variableIndex !== index && variable.name === name
+    );
+    if (duplicate) {
+      alert('이미 같은 이름의 변수가 있습니다.');
+      return;
+    }
+
+    const variable = normalizeVariableForType({ ...nextVariable, name });
+    const variables = documentVariables.definition.variables.map((item, variableIndex) =>
+      variableIndex === index ? variable : item
+    );
+    const values = { ...documentVariables.values };
+    if (current.name !== variable.name) {
+      values[variable.name] = values[current.name] ?? evaluateTemplateVariable(variable, values);
+      delete values[current.name];
+    }
+    if (variable.type === 'script' || variable.type === 'ai') {
+      values[variable.name] = evaluateTemplateVariable(variable, values);
+    } else if (!(variable.name in values)) {
+      values[variable.name] = evaluateTemplateVariable(variable, values);
+    }
+
+    updateDocumentVariables({
+      ...documentVariables,
+      definition: {
+        ...documentVariables.definition,
+        variables,
+      },
+      values,
+    });
+  }
+
+  function handleDeleteVariable(index: number) {
+    if (!documentVariables) return;
+    const variable = documentVariables.definition.variables[index];
+    if (!variable) return;
+    if (!confirm(`"${variable.label || variable.name}" 변수를 삭제할까요?`)) return;
+
+    const values = { ...documentVariables.values };
+    delete values[variable.name];
+    updateDocumentVariables({
+      ...documentVariables,
+      definition: {
+        ...documentVariables.definition,
+        variables: documentVariables.definition.variables.filter((_, variableIndex) => variableIndex !== index),
+      },
+      values,
+    });
+  }
+
+  function handleExportYaml() {
+    if (!documentVariables) return;
+    const yaml = serializeAdvancedTemplateYaml(documentVariables.definition);
+    const blob = new Blob([yaml], { type: 'text/yaml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${documentVariables.sourceName || 'document-variables'}.yaml`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportYaml(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const definition = parseAdvancedTemplateYaml(await file.text());
+      updateDocumentVariables(createDocumentVariablesState(`import:${file.name}`, file.name, definition));
+    } catch (error) {
+      console.error('[document-variables] YAML 가져오기 실패:', error);
+      alert('문서 변수 YAML을 가져오지 못했습니다.');
+    }
   }
 
   function createTemplateContext(values: Record<string, string>) {
@@ -199,15 +359,34 @@ export default function DocumentVariablesPanel() {
   return (
     <div className="flex h-full flex-col" style={{ background: 'var(--color-bg-panel)' }}>
       <div className="panel-header border-b border-[var(--color-bg-border)]">
-        <h2 className="text-sm font-semibold">문서 변수</h2>
-        <p className="text-[11px] text-[var(--color-text-muted)]">
-          문서의 변수 값을 입력하고 적용하세요
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold">문서 변수</h2>
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              문서의 변수 값을 입력하고 적용하세요
+            </p>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <HeaderIconButton title="변수 추가" onClick={handleAddVariable}>
+              <path d="M12 5v14M5 12h14" />
+            </HeaderIconButton>
+            <HeaderIconButton title="YAML 가져오기" onClick={() => importInputRef.current?.click()}>
+              <path d="M12 3v12" />
+              <path d="m7 8 5-5 5 5" />
+              <path d="M5 21h14" />
+            </HeaderIconButton>
+            <HeaderIconButton title="YAML 내보내기" onClick={handleExportYaml} disabled={!documentVariables}>
+              <path d="M12 21V9" />
+              <path d="m7 16 5 5 5-5" />
+              <path d="M5 3h14" />
+            </HeaderIconButton>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
         {!documentVariables ? (
-          <EmptyState />
+          <EmptyState onCreate={createEmptyDocumentVariables} onImport={() => importInputRef.current?.click()} />
         ) : (
           <div className="space-y-3">
             <section
@@ -281,9 +460,10 @@ export default function DocumentVariablesPanel() {
               </p>
             ) : (
               <div className="space-y-2">
-                {variables.map((variable) => (
+                {variables.map((variable, index) => (
                   <DocumentVariableInput
-                    key={variable.name}
+                    key={index}
+                    index={index}
                     variable={variable}
                     value={documentVariables.values[variable.name] ?? ''}
                     options={resolveTemplateVariableOptions(variable, documentVariables.values)}
@@ -293,6 +473,8 @@ export default function DocumentVariablesPanel() {
                       stripThinkTags(documentVariables.values[variable.name] ?? '')
                     )}
                     onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
+                    onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                    onDelete={() => handleDeleteVariable(index)}
                   />
                 ))}
               </div>
@@ -302,6 +484,13 @@ export default function DocumentVariablesPanel() {
       </div>
 
       <div className="border-t border-[var(--color-bg-border)] p-3">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".yaml,.yml,text/yaml,text/plain"
+          className="hidden"
+          onChange={handleImportYaml}
+        />
         <button
           type="button"
           onClick={handleApply}
@@ -315,7 +504,87 @@ export default function DocumentVariablesPanel() {
   );
 }
 
-function EmptyState() {
+function normalizeVariableName(name: string) {
+  return name.trim().replace(/\s+/g, '_');
+}
+
+function normalizeVariableForType(variable: AdvancedTemplateVariable): AdvancedTemplateVariable {
+  if (variable.type === 'select') {
+    return {
+      ...variable,
+      options: variable.options,
+      prompt: '',
+      script: '',
+    };
+  }
+  if (variable.type === 'script') {
+    return {
+      ...variable,
+      options: [],
+      prompt: '',
+      script: variable.script || variable.defaultValue,
+    };
+  }
+  if (variable.type === 'ai') {
+    return {
+      ...variable,
+      options: [],
+      script: '',
+      prompt: variable.prompt || variable.defaultValue,
+    };
+  }
+  return {
+    ...variable,
+    options: [],
+    script: '',
+    prompt: '',
+  };
+}
+
+function HeaderIconButton({
+  title,
+  disabled,
+  onClick,
+  children,
+}: {
+  title: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-7 w-7 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+      title={title}
+      aria-label={title}
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {children}
+      </svg>
+    </button>
+  );
+}
+
+function EmptyState({
+  onCreate,
+  onImport,
+}: {
+  onCreate: () => void;
+  onImport: () => void;
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-4 text-center">
       <div
@@ -340,26 +609,41 @@ function EmptyState() {
       <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
         변수 정의 YAML이 있는 템플릿을 선택하면 여기에 입력 항목이 표시됩니다.
       </p>
+      <div className="mt-4 flex w-full max-w-48 flex-col gap-2">
+        <button type="button" onClick={onCreate} className="btn btn-primary py-1.5 text-xs">
+          새 변수 세트 만들기
+        </button>
+        <button type="button" onClick={onImport} className="btn btn-secondary py-1.5 text-xs">
+          YAML 가져오기
+        </button>
+      </div>
     </div>
   );
 }
 
 function DocumentVariableInput({
+  index,
   variable,
   value,
   options,
   isGenerating,
   onInsert,
   onChange,
+  onUpdate,
+  onDelete,
 }: {
+  index: number;
   variable: AdvancedTemplateVariable;
   value: string;
   options: string[];
   isGenerating: boolean;
   onInsert: () => void;
   onChange: (value: string) => void;
+  onUpdate: (variable: AdvancedTemplateVariable) => void;
+  onDelete: () => void;
 }) {
   const typeMeta = getVariableTypeMeta(variable.type);
+  const [isEditing, setIsEditing] = useState(false);
 
   return (
     <div
@@ -398,6 +682,32 @@ function DocumentVariableInput({
           {'{{'}{variable.name}{'}}'}
         </code>
       </button>
+      <div className="flex justify-end gap-1">
+        <button
+          type="button"
+          onClick={() => setIsEditing((value) => !value)}
+          className="text-[10px] font-medium"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          {isEditing ? '편집 닫기' : '편집'}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="text-[10px] font-medium"
+          style={{ color: 'var(--ctp-red)' }}
+        >
+          삭제
+        </button>
+      </div>
+
+      {isEditing && (
+        <VariableDefinitionEditor
+          index={index}
+          variable={variable}
+          onUpdate={onUpdate}
+        />
+      )}
 
       {variable.type === 'select' ? (
         <select
@@ -457,14 +767,163 @@ function DocumentVariableInput({
   );
 }
 
+function VariableDefinitionEditor({
+  index,
+  variable,
+  onUpdate,
+}: {
+  index: number;
+  variable: AdvancedTemplateVariable;
+  onUpdate: (variable: AdvancedTemplateVariable) => void;
+}) {
+  function updateField<K extends keyof AdvancedTemplateVariable>(field: K, value: AdvancedTemplateVariable[K]) {
+    onUpdate({ ...variable, [field]: value });
+  }
+
+  function updateType(type: AdvancedTemplateVariableType) {
+    onUpdate(normalizeVariableForType({
+      ...variable,
+      type,
+      defaultValue: type === 'select' ? variable.defaultValue || variable.options[0] || '' : variable.defaultValue,
+    }));
+  }
+
+  return (
+    <div
+      className="space-y-2 rounded-md border p-2"
+      style={{
+        borderColor: 'var(--color-bg-border)',
+        background: 'var(--color-bg-surface)',
+      }}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block space-y-1">
+          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            변수명
+          </span>
+          <input
+            value={variable.name}
+            onChange={(event) => updateField('name', event.target.value)}
+            className="input py-1.5"
+            placeholder={`variable${index + 1}`}
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            타입
+          </span>
+          <select
+            value={variable.type}
+            onChange={(event) => updateType(event.target.value as AdvancedTemplateVariableType)}
+            className="input py-1.5"
+          >
+            <option value="text">텍스트</option>
+            <option value="select">선택</option>
+            <option value="script">스크립트</option>
+            <option value="ai">AI</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="block space-y-1">
+        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          라벨
+        </span>
+        <input
+          value={variable.label}
+          onChange={(event) => updateField('label', event.target.value)}
+          className="input py-1.5"
+          placeholder="사이드바에 표시할 이름"
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          설명
+        </span>
+        <textarea
+          value={variable.description || ''}
+          onChange={(event) => updateField('description', event.target.value)}
+          className="input min-h-14 resize-y py-1.5"
+          placeholder="변수 설명"
+        />
+      </label>
+
+      {variable.type === 'select' ? (
+        <>
+          <label className="block space-y-1">
+            <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              기본값
+            </span>
+            <input
+              value={variable.defaultValue}
+              onChange={(event) => updateField('defaultValue', event.target.value)}
+              className="input py-1.5"
+              placeholder="선택지 중 기본값"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              선택지
+            </span>
+            <textarea
+              value={variable.options.join('\n')}
+              onChange={(event) => updateField(
+                'options',
+                event.target.value.split('\n').map((option) => option.trim()).filter(Boolean)
+              )}
+              className="input min-h-20 resize-y py-1.5"
+              placeholder={'한 줄에 하나씩 입력\n예: 기획팀'}
+            />
+          </label>
+        </>
+      ) : variable.type === 'script' ? (
+        <label className="block space-y-1">
+          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            스크립트
+          </span>
+          <textarea
+            value={variable.script || ''}
+            onChange={(event) => updateField('script', event.target.value)}
+            className="input min-h-20 resize-y py-1.5 font-mono"
+            placeholder={'date("yyyy-MM-dd")\nnumber(value("amount")) * 1.1'}
+          />
+        </label>
+      ) : variable.type === 'ai' ? (
+        <label className="block space-y-1">
+          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            AI 프롬프트
+          </span>
+          <textarea
+            value={variable.prompt || variable.defaultValue}
+            onChange={(event) => updateField('prompt', event.target.value)}
+            className="input min-h-24 resize-y py-1.5"
+            placeholder="AI에 전달할 프롬프트"
+          />
+        </label>
+      ) : (
+        <label className="block space-y-1">
+          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            기본값
+          </span>
+          <input
+            value={variable.defaultValue}
+            onChange={(event) => updateField('defaultValue', event.target.value)}
+            className="input py-1.5"
+            placeholder="기본 입력값"
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
 function getVariableTypeMeta(type: AdvancedTemplateVariable['type']) {
   switch (type) {
     case 'select':
       return { label: '선택', color: 'var(--ctp-sapphire)' };
-    case 'date':
-      return { label: '날짜', color: 'var(--ctp-green)' };
     case 'script':
-      return { label: '자동', color: 'var(--ctp-peach)' };
+      return { label: '스크립트', color: 'var(--ctp-peach)' };
     case 'ai':
       return { label: 'AI', color: 'var(--ctp-mauve)' };
     case 'text':

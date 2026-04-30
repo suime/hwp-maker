@@ -150,8 +150,7 @@ AI가 문서를 수정하려면 `SKILLS.md`에 정의된 `hwp-maker-actions` 또
 
 - `text`: 직접 입력
 - `select`: 선택지 중 하나 선택
-- `date`: 현재 날짜 기반 값 생성
-- `script`: 제한된 내장 스크립트 값 생성
+- `script`: 날짜 생성, 숫자 계산, 문자열 파싱을 위한 JavaScript 식 실행
 - `ai`: 현재 변수 값을 바탕으로 AI가 텍스트 생성
 
 문서 변수 YAML은 문서 기본 정보(`document.author`, `document.description`, `document.systemPrompt`), 변수별 설명(`description`), 조건부 선택지(`optionsWhen`)도 지원합니다. 문서 기본 정보와 `systemPrompt`는 문서 변수 탭에서 수정할 수 있고, `ai` 변수 생성 및 채팅 요청에 함께 전달됩니다.

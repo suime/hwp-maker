@@ -1,4 +1,4 @@
-export type AdvancedTemplateVariableType = 'text' | 'select' | 'date' | 'script' | 'ai';
+export type AdvancedTemplateVariableType = 'text' | 'select' | 'script' | 'ai';
 
 export interface AdvancedTemplateOptionRule {
   variable: string;
@@ -53,12 +53,72 @@ function parseInlineList(value: string) {
     .filter(Boolean);
 }
 
+function formatYamlScalar(value?: string) {
+  const text = value ?? '';
+  if (!text) return "''";
+  if (/^[A-Za-z0-9_.@/\-가-힣\s()]+$/.test(text) && !text.includes(': ') && !text.includes('#')) {
+    return text;
+  }
+  return JSON.stringify(text);
+}
+
+function appendYamlField(lines: string[], indent: string, key: string, value?: string) {
+  const text = value ?? '';
+  if (!text) return;
+  if (text.includes('\n')) {
+    lines.push(`${indent}${key}: |`);
+    for (const line of text.split('\n')) {
+      lines.push(`${indent}  ${line}`);
+    }
+  } else {
+    lines.push(`${indent}${key}: ${formatYamlScalar(text)}`);
+  }
+}
+
 function parseVariableType(value: string): AdvancedTemplateVariableType {
   const type = parseScalar(value).toLowerCase();
   if (type === 'llm') return 'ai';
-  return ['text', 'select', 'date', 'script', 'ai'].includes(type)
+  if (type === 'date') return 'script';
+  return ['text', 'select', 'script', 'ai'].includes(type)
     ? (type as AdvancedTemplateVariableType)
     : 'text';
+}
+
+export function serializeAdvancedTemplateYaml(definition: AdvancedTemplateDefinition) {
+  const lines: string[] = [];
+  lines.push('document:');
+  appendYamlField(lines, '  ', 'author', definition.author);
+  appendYamlField(lines, '  ', 'description', definition.description);
+  appendYamlField(lines, '  ', 'systemPrompt', definition.systemPrompt);
+  lines.push('');
+  lines.push('variables:');
+
+  for (const variable of definition.variables) {
+    lines.push(`  ${variable.name}:`);
+    appendYamlField(lines, '    ', 'label', variable.label);
+    lines.push(`    type: ${variable.type}`);
+    appendYamlField(lines, '    ', 'description', variable.description);
+
+    if (variable.type === 'select') {
+      if (variable.defaultValue) {
+        appendYamlField(lines, '    ', 'default', variable.defaultValue);
+      }
+      lines.push('    options:');
+      for (const option of variable.options) {
+        lines.push(`      - ${formatYamlScalar(option)}`);
+      }
+    } else if (variable.type === 'script') {
+      appendYamlField(lines, '    ', 'script', variable.script || variable.defaultValue);
+    } else if (variable.type === 'ai') {
+      appendYamlField(lines, '    ', 'prompt', variable.prompt || variable.defaultValue);
+    } else {
+      appendYamlField(lines, '    ', 'default', variable.defaultValue);
+    }
+
+    lines.push('');
+  }
+
+  return `${lines.join('\n').trimEnd()}\n`;
 }
 
 function formatDate(date: Date, format = DEFAULT_DATE_FORMAT) {
@@ -119,12 +179,11 @@ export function normalizeTemplateVariableValues(
   return normalized;
 }
 
-export function evaluateTemplateVariable(variable: AdvancedTemplateVariable) {
+export function evaluateTemplateVariable(
+  variable: AdvancedTemplateVariable,
+  values: Record<string, string> = {}
+) {
   const now = new Date();
-
-  if (variable.type === 'date') {
-    return formatDate(now, variable.format || variable.defaultValue || DEFAULT_DATE_FORMAT);
-  }
 
   if (variable.type === 'ai') {
     return variable.prompt || variable.defaultValue || '';
@@ -145,6 +204,55 @@ export function evaluateTemplateVariable(variable: AdvancedTemplateVariable) {
 
   const dateMatch = script.match(/^date\((['"]?)([^'")]*)\1\)$/);
   if (dateMatch) return formatDate(now, dateMatch[2] || DEFAULT_DATE_FORMAT);
+
+  try {
+    const value = (name: string) => values[name] ?? '';
+    const number = (input: unknown) => {
+      const parsed = Number(String(input ?? '').replace(/,/g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const text = (input: unknown) => String(input ?? '');
+    const today = (format = variable.format || DEFAULT_DATE_FORMAT) => formatDate(now, format);
+    const date = (format = variable.format || DEFAULT_DATE_FORMAT) => formatDate(now, format);
+    const body = /\breturn\b/.test(script) || script.includes('\n')
+      ? script
+      : `return (${script});`;
+    const result = Function(
+      'values',
+      'value',
+      'number',
+      'text',
+      'today',
+      'date',
+      'currentDate',
+      'currentYear',
+      'currentMonth',
+      'currentDay',
+      'Math',
+      'String',
+      'Number',
+      'Date',
+      `"use strict";\n${body}`
+    )(
+      Object.freeze({ ...values }),
+      value,
+      number,
+      text,
+      today,
+      date,
+      today,
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      Math,
+      String,
+      Number,
+      Date
+    );
+    return result == null ? '' : String(result);
+  } catch (error) {
+    console.warn(`[template] script variable "${variable.name}" evaluation failed:`, error);
+  }
 
   return variable.defaultValue || '';
 }

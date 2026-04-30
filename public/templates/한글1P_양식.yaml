@@ -37,9 +37,9 @@ variables:
 
   date:
     label: 작성일
-    type: date
+    type: script
     description: 현재 날짜를 한글 문서용 날짜 형식으로 자동 입력합니다.
-    format: yyyy년 MM월 dd일 (aaa)
+    script: date("yyyy년 MM월 dd일 (aaa)")
 
   name:
     label: 작성자

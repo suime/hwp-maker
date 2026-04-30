@@ -26,9 +26,10 @@ export function createDocumentVariablesState(
   sourceName: string,
   definition: AdvancedTemplateDefinition
 ): ActiveDocumentVariables {
-  const values = Object.fromEntries(
-    definition.variables.map((variable) => [variable.name, evaluateTemplateVariable(variable)])
-  );
+  const values: Record<string, string> = {};
+  for (const variable of definition.variables) {
+    values[variable.name] = evaluateTemplateVariable(variable, values);
+  }
 
   return {
     sourceId,
@@ -45,7 +46,11 @@ function normalizeDocumentVariablesState(state: ActiveDocumentVariables): Active
     ...state.definition,
     variables: state.definition.variables.map((variable) => ({
       ...variable,
-      type: variable.type === ('llm' as AdvancedTemplateVariable['type']) ? 'ai' : variable.type,
+      type: variable.type === ('llm' as AdvancedTemplateVariable['type'])
+        ? 'ai'
+        : variable.type === ('date' as AdvancedTemplateVariable['type'])
+          ? 'script'
+          : variable.type,
     })),
   };
   const oldState = state as ActiveDocumentVariables & { llmPromptValuesVersion?: 1 };
@@ -53,8 +58,14 @@ function normalizeDocumentVariablesState(state: ActiveDocumentVariables): Active
   if (state.aiPromptValuesVersion !== 1 && oldState.llmPromptValuesVersion !== 1) {
     for (const variable of definition.variables) {
       if (variable.type === 'ai') {
-        values[variable.name] = evaluateTemplateVariable(variable);
+        values[variable.name] = evaluateTemplateVariable(variable, values);
       }
+    }
+  }
+
+  for (const variable of definition.variables) {
+    if (variable.type === 'script') {
+      values[variable.name] = evaluateTemplateVariable(variable, values);
     }
   }
 

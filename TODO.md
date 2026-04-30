@@ -67,7 +67,6 @@
 - [x] YAML 변수 타입 지원
   - [x] `text`
   - [x] `select`
-  - [x] `date`
   - [x] `script`
   - [x] `ai`
 - [x] `ai` 변수 생성 API 구현
