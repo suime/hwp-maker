@@ -209,7 +209,11 @@ export async function POST(req: Request) {
     const model = body.config?.model || 'gpt-4o';
 
     const openai = createOpenAI({ baseURL, apiKey });
-    const system = [body.systemPrompt, buildRhwpDocumentPrompt(body.documentContext)]
+    const system = [
+      '응답에 <think>, </think>, reasoning, 사고 과정, 내부 추론을 절대 포함하지 마세요. 사용자에게 보여줄 최종 답변만 작성하세요.',
+      body.systemPrompt,
+      buildRhwpDocumentPrompt(body.documentContext),
+    ]
       .filter(Boolean)
       .join('\n\n');
     const result = streamText({

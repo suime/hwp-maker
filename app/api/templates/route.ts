@@ -26,7 +26,7 @@ export async function GET() {
           id: `builtin-${file}`,
           name,
           description: yamlFile
-            ? `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 고급 양식 파일`
+            ? `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 변수 정의 포함 양식 파일`
             : `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
           builtIn: true,
           filePath: `/templates/${file}`,

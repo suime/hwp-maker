@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from '../../../node_modules/@ai-sdk/react/node_modules/ai/dist/index.mjs';
+import { stripThinkTags } from '@/lib/ai/rhwpCommands';
 
 export const maxDuration = 30;
 
@@ -31,9 +32,10 @@ export async function POST(req: Request) {
     const result = await generateText({
       model: openai(model),
       system: [
-        '고급 HWP 템플릿의 변수 값을 생성합니다.',
+        'HWP 문서 변수 값을 생성합니다.',
         '출력은 문서에 바로 치환될 순수 텍스트만 작성하세요.',
         '마크다운 코드블록, JSON, 설명문, 따옴표 포장은 쓰지 마세요.',
+        '응답에 <think>, </think>, reasoning, 사고 과정, 내부 추론을 절대 포함하지 마세요.',
       ].join('\n'),
       prompt: [
         body.variableName ? `변수명: ${body.variableName}` : '',
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
         .join('\n'),
     });
 
-    return Response.json({ text: result.text.trim() });
+    return Response.json({ text: stripThinkTags(result.text) });
   } catch (error) {
     console.error('Template LLM API Error:', error);
     return Response.json(

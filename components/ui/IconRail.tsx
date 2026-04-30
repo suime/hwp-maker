@@ -33,6 +33,20 @@ const TABS: { id: SideTab; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    id: 'variables',
+    label: '문서 변수',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 7V5a2 2 0 0 1 2-2h2" />
+        <path d="M16 3h2a2 2 0 0 1 2 2v2" />
+        <path d="M20 17v2a2 2 0 0 1-2 2h-2" />
+        <path d="M8 21H6a2 2 0 0 1-2-2v-2" />
+        <path d="M8 12h8" />
+        <path d="M12 8v8" />
+      </svg>
+    ),
+  },
+  {
     id: 'profile',
     label: '프로필',
     icon: (

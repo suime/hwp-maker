@@ -6,7 +6,7 @@ import type { UIMessage } from '@ai-sdk/react';
 import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
 import { loadAiConfig } from '@/lib/ai/config';
 import { rhwpActions } from '@/lib/rhwp/loader';
-import { parseRhwpAiResponse, type RhwpAiAction } from '@/lib/ai/rhwpCommands';
+import { parseRhwpAiResponse, stripThinkTags, type RhwpAiAction } from '@/lib/ai/rhwpCommands';
 import type { Attachment } from '@/types/attachment';
 import { processFile } from '@/lib/attachment/reader';
 import {
@@ -106,7 +106,7 @@ function collapseRepeatedText(text: string) {
 }
 
 function getMessageText(message: UIMessage) {
-  return collapseRepeatedText(messageContentToText(message));
+  return stripThinkTags(collapseRepeatedText(messageContentToText(message)));
 }
 
 function dedupeMessages(messages: UIMessage[]) {
@@ -143,12 +143,12 @@ function toSessionMessages(messages: UIMessage[]): SessionMessage[] {
 
 function extractAssistantText(messageOrEvent: unknown): string {
   const event = messageOrEvent as { message?: unknown; content?: unknown; text?: string };
-  return messageContentToText(
+  return stripThinkTags(messageContentToText(
     event?.message ??
       event?.content ??
       event?.text ??
       ''
-  );
+  ));
 }
 
 function renderInlineMarkdown(text: string) {
@@ -285,13 +285,14 @@ function MarkdownBlock({ text }: { text: string }) {
 }
 
 function MessageContent({ text }: { text: string }) {
+  const sanitizedText = stripThinkTags(text);
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   const actionBlockRe = new RegExp(ACTION_BLOCK_RE);
 
-  while ((match = actionBlockRe.exec(text)) !== null) {
-    const before = text.slice(lastIndex, match.index);
+  while ((match = actionBlockRe.exec(sanitizedText)) !== null) {
+    const before = sanitizedText.slice(lastIndex, match.index);
     if (before.trim()) {
       nodes.push(<MarkdownBlock key={`md-${match.index}`} text={before} />);
     }
@@ -312,7 +313,7 @@ function MessageContent({ text }: { text: string }) {
     lastIndex = match.index + match[0].length;
   }
 
-  const rest = text.slice(lastIndex);
+  const rest = sanitizedText.slice(lastIndex);
   if (rest.trim()) {
     nodes.push(<MarkdownBlock key="md-rest" text={rest} />);
   }

@@ -5,11 +5,12 @@ import TopBar from '@/components/ui/TopBar';
 import IconRail from '@/components/ui/IconRail';
 import ChatPanel from '@/components/chat/ChatPanel';
 import TemplatePanel from '@/components/editor/TemplatePanel';
+import DocumentVariablesPanel from '@/components/editor/DocumentVariablesPanel';
 import SettingsPanel from '@/components/editor/SettingsPanel';
 import ProfilePanel from '@/components/editor/ProfilePanel';
 import PreviewPanel from '@/components/editor/PreviewPanel';
 
-export type SideTab = 'chat' | 'template' | 'profile' | 'settings';
+export type SideTab = 'chat' | 'template' | 'variables' | 'profile' | 'settings';
 
 const SIDEBAR_WIDTH_KEY = 'hwp-maker:sidebar-width';
 const SIDEBAR_POS_KEY = 'hwp-maker:sidebar-position';
@@ -109,6 +110,7 @@ export default function EditorLayout() {
             >
               {activeTab === 'chat' && <ChatPanel />}
               {activeTab === 'template' && <TemplatePanel />}
+              {activeTab === 'variables' && <DocumentVariablesPanel />}
               {activeTab === 'profile' && <ProfilePanel />}
               {activeTab === 'settings' && (
                 <SettingsPanel

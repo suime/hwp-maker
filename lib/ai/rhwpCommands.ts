@@ -39,9 +39,25 @@ export type ParsedRhwpAiResponse = {
 const ACTION_BLOCK_RE = /```(?:hwp-maker-actions|rhwp-actions)\s*([\s\S]*?)```/i;
 const MAX_DOCUMENT_TEXT = 12000;
 const MAX_FIELDS = 80;
+const THINK_TAG_RE = /<\s*think\b[^>]*>[\s\S]*?<\s*\/\s*think\s*>/gi;
+const OPEN_THINK_TAG_RE = /<\s*think\b[^>]*>[\s\S]*$/gi;
+const ESCAPED_THINK_TAG_RE = /&lt;\s*think\b[\s\S]*?&gt;[\s\S]*?&lt;\s*\/\s*think\s*&gt;/gi;
+const OPEN_ESCAPED_THINK_TAG_RE = /&lt;\s*think\b[\s\S]*?&gt;[\s\S]*$/gi;
+const THINK_LINE_TAG_RE = /^\s*<\/?\s*think\s*>\s*$/gim;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function stripThinkTags(content = '') {
+  return content
+    .replace(THINK_TAG_RE, '')
+    .replace(OPEN_THINK_TAG_RE, '')
+    .replace(ESCAPED_THINK_TAG_RE, '')
+    .replace(OPEN_ESCAPED_THINK_TAG_RE, '')
+    .replace(THINK_LINE_TAG_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function normalizeAction(value: unknown): RhwpAiAction | null {
@@ -56,14 +72,14 @@ function normalizeAction(value: unknown): RhwpAiAction | null {
         }
       : undefined;
 
-    return { type: 'insert_text', text: value.text, position };
+    return { type: 'insert_text', text: stripThinkTags(value.text), position };
   }
 
   if (value.type === 'replace_all' && typeof value.query === 'string') {
     return {
       type: 'replace_all',
-      query: value.query,
-      text: typeof value.text === 'string' ? value.text : '',
+      query: stripThinkTags(value.query),
+      text: typeof value.text === 'string' ? stripThinkTags(value.text) : '',
       caseSensitive: Boolean(value.caseSensitive),
     };
   }
@@ -71,7 +87,7 @@ function normalizeAction(value: unknown): RhwpAiAction | null {
   if (value.type === 'delete_text' && typeof value.query === 'string') {
     return {
       type: 'delete_text',
-      query: value.query,
+      query: stripThinkTags(value.query),
       caseSensitive: Boolean(value.caseSensitive),
     };
   }
@@ -81,12 +97,18 @@ function normalizeAction(value: unknown): RhwpAiAction | null {
     typeof value.name === 'string' &&
     typeof value.value === 'string'
   ) {
-    return { type: 'fill_field', name: value.name, value: value.value };
+    return {
+      type: 'fill_field',
+      name: stripThinkTags(value.name),
+      value: stripThinkTags(value.value),
+    };
   }
 
   if (value.type === 'fill_fields' && isRecord(value.values)) {
     const values = Object.fromEntries(
-      Object.entries(value.values).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+      Object.entries(value.values)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([name, text]) => [stripThinkTags(name), stripThinkTags(text)])
     );
     return { type: 'fill_fields', values };
   }
@@ -113,18 +135,19 @@ function actionsFromJson(raw: string): RhwpAiAction[] {
 }
 
 export function parseRhwpAiResponse(content = ''): ParsedRhwpAiResponse {
-  const blockMatch = content.match(ACTION_BLOCK_RE);
+  const sanitizedContent = stripThinkTags(content);
+  const blockMatch = sanitizedContent.match(ACTION_BLOCK_RE);
 
   if (blockMatch) {
     const actions = actionsFromJson(blockMatch[1].trim());
-    const visibleText = content.replace(blockMatch[0], '').trim();
+    const visibleText = stripThinkTags(sanitizedContent.replace(blockMatch[0], ''));
     return {
       visibleText: visibleText || (actions.length > 0 ? '문서에 반영했습니다.' : ''),
       actions,
     };
   }
 
-  const trimmed = content.trim();
+  const trimmed = sanitizedContent.trim();
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     const actions = actionsFromJson(trimmed);
     if (actions.length > 0) {

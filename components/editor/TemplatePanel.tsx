@@ -2,14 +2,12 @@
 
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
-import { loadAiConfig } from '@/lib/ai/config';
+import { parseAdvancedTemplateYaml } from '@/lib/templates/advanced';
 import {
-  evaluateTemplateVariable,
-  interpolateTemplateString,
-  parseAdvancedTemplateYaml,
-  type AdvancedTemplateDefinition,
-  type AdvancedTemplateVariable,
-} from '@/lib/templates/advanced';
+  clearDocumentVariables,
+  createDocumentVariablesState,
+  saveDocumentVariables,
+} from '@/lib/templates/documentVariables';
 
 interface Template {
   id: string;
@@ -20,12 +18,6 @@ interface Template {
   filePath?: string;
   yamlPath?: string;
   data?: ArrayBuffer;
-}
-
-interface LoadedAdvancedTemplate {
-  template: Template;
-  definition: AdvancedTemplateDefinition;
-  values: Record<string, string>;
 }
 
 // 기존 하드코딩 목록 제거 (API에서 로드)
@@ -50,8 +42,6 @@ export default function TemplatePanel() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
-  const [advancedTemplate, setAdvancedTemplate] = useState<LoadedAdvancedTemplate | null>(null);
-  const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,12 +91,9 @@ export default function TemplatePanel() {
         const res = await fetch(template.yamlPath);
         if (!res.ok) throw new Error('YAML 파일을 불러올 수 없습니다.');
         const definition = parseAdvancedTemplateYaml(await res.text());
-        const values = Object.fromEntries(
-          definition.variables.map((variable) => [variable.name, evaluateTemplateVariable(variable)])
-        );
-        setAdvancedTemplate({ template, definition, values });
+        saveDocumentVariables(createDocumentVariablesState(template.id, template.name, definition));
       } else {
-        setAdvancedTemplate(null);
+        clearDocumentVariables();
       }
       console.log('[template] 로드 완료:', template.name);
     } catch (err) {
@@ -115,62 +102,6 @@ export default function TemplatePanel() {
     } finally {
       setLoadingId(null);
     }
-  }
-
-  async function handleApplyAdvancedTemplate() {
-    if (!advancedTemplate) return;
-
-    setLoadingId(advancedTemplate.template.id);
-    try {
-      const aiConfig = loadAiConfig();
-      const resolvedValues = { ...advancedTemplate.values };
-      const llmVariables = advancedTemplate.definition.variables.filter((variable) => variable.type === 'llm');
-
-      for (const variable of llmVariables) {
-        setGeneratingVariableName(variable.name);
-        const prompt = interpolateTemplateString(variable.prompt || variable.defaultValue || '', resolvedValues);
-        const res = await fetch('/api/template-llm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            config: aiConfig,
-            variableName: variable.name,
-            prompt,
-            values: resolvedValues,
-          }),
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`LLM 변수 생성 실패 (${res.status}): ${errorText}`);
-        }
-
-        const data = await res.json() as { text?: string };
-        resolvedValues[variable.name] = data.text || '';
-      }
-
-      setAdvancedTemplate((current) => current
-        ? { ...current, values: resolvedValues }
-        : current);
-
-      for (const variable of advancedTemplate.definition.variables) {
-        const value = resolvedValues[variable.name] ?? '';
-        await rhwpActions.replaceAll(`{{${variable.name}}}`, value);
-      }
-      console.log('[template] 고급 템플릿 변수 적용 완료:', advancedTemplate.template.name);
-    } catch (err) {
-      console.error('[template] 변수 적용 에러:', err);
-      alert('템플릿 변수를 적용하는 중 오류가 발생했습니다.');
-    } finally {
-      setGeneratingVariableName(null);
-      setLoadingId(null);
-    }
-  }
-
-  function handleVariableChange(name: string, value: string) {
-    setAdvancedTemplate((current) => current
-      ? { ...current, values: { ...current.values, [name]: value } }
-      : current);
   }
 
   function handleUpload(e: ChangeEvent<HTMLInputElement>) {
@@ -198,7 +129,6 @@ export default function TemplatePanel() {
     const updated = myTemplates.filter((t) => t.id !== id);
     setMyTemplates(updated);
     if (activeId === id) setActiveId(null);
-    if (advancedTemplate?.template.id === id) setAdvancedTemplate(null);
   }
 
   return (
@@ -229,18 +159,6 @@ export default function TemplatePanel() {
 
       {/* 목록 */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {advancedTemplate && (
-          <AdvancedTemplateForm
-            template={advancedTemplate.template}
-            variables={advancedTemplate.definition.variables}
-            values={advancedTemplate.values}
-            isApplying={loadingId === advancedTemplate.template.id}
-            generatingVariableName={generatingVariableName}
-            onChange={handleVariableChange}
-            onApply={handleApplyAdvancedTemplate}
-          />
-        )}
-
         <section>
           <p className="section-label">기본 템플릿</p>
           <ul className="space-y-0.5">
@@ -336,7 +254,7 @@ function TemplateItem({
                 color: 'var(--color-brand)',
               }}
             >
-              YAML
+              변수
             </span>
           )}
         </div>
@@ -356,142 +274,5 @@ function TemplateItem({
         </button>
       )}
     </li>
-  );
-}
-
-function AdvancedTemplateForm({
-  template,
-  variables,
-  values,
-  isApplying,
-  generatingVariableName,
-  onChange,
-  onApply,
-}: {
-  template: Template;
-  variables: AdvancedTemplateVariable[];
-  values: Record<string, string>;
-  isApplying: boolean;
-  generatingVariableName: string | null;
-  onChange: (name: string, value: string) => void;
-  onApply: () => void;
-}) {
-  const llmCount = variables.filter((variable) => variable.type === 'llm').length;
-
-  return (
-    <section
-      className="rounded-lg border p-3 space-y-3"
-      style={{
-        borderColor: 'color-mix(in srgb, var(--color-brand) 28%, transparent)',
-        background: 'color-mix(in srgb, var(--color-brand) 7%, transparent)',
-      }}
-    >
-      <div>
-        <p className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-          고급 템플릿 변수
-        </p>
-        <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
-          {template.name}
-        </p>
-        {llmCount > 0 && (
-          <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            선택/입력 값을 먼저 확정한 뒤 LLM 변수 {llmCount}개를 생성합니다.
-          </p>
-        )}
-      </div>
-
-      {variables.length === 0 ? (
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          YAML에 정의된 변수가 없습니다.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {variables.map((variable) => (
-            <TemplateVariableInput
-              key={variable.name}
-              variable={variable}
-              value={values[variable.name] ?? ''}
-              isGenerating={generatingVariableName === variable.name}
-              onChange={(value) => onChange(variable.name, value)}
-            />
-          ))}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={onApply}
-        disabled={isApplying || variables.length === 0}
-        className="btn btn-primary w-full"
-      >
-        {isApplying ? '적용 중...' : llmCount > 0 ? 'LLM 생성 후 변수 적용' : '변수 적용'}
-      </button>
-    </section>
-  );
-}
-
-function TemplateVariableInput({
-  variable,
-  value,
-  isGenerating,
-  onChange,
-}: {
-  variable: AdvancedTemplateVariable;
-  value: string;
-  isGenerating: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block space-y-1">
-      <span className="flex items-center justify-between gap-2 text-[11px] font-medium">
-        <span className="truncate" style={{ color: 'var(--color-text-secondary)' }}>
-          {variable.label || variable.name}
-        </span>
-        <code className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-          {'{{'}{variable.name}{'}}'}
-        </code>
-      </span>
-
-      {variable.type === 'select' ? (
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input py-1.5"
-        >
-          {variable.options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      ) : variable.type === 'llm' ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input min-h-16 resize-y py-1.5"
-          placeholder={isGenerating ? 'LLM 생성 중...' : 'LLM으로 자동 생성됩니다'}
-          readOnly={isGenerating}
-        />
-      ) : (
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input py-1.5"
-          readOnly={variable.type === 'script'}
-        />
-      )}
-
-      {variable.type === 'llm' && (variable.prompt || variable.defaultValue) && (
-        <span className="block whitespace-pre-wrap text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-          지시문: {variable.prompt || variable.defaultValue}
-        </span>
-      )}
-
-      {variable.description && (
-        <span className="block text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-          {variable.description}
-        </span>
-      )}
-    </label>
   );
 }
