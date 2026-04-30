@@ -5,7 +5,14 @@
  */
 
 import { useState, useEffect } from 'react';
-import { toggleTheme, getStoredTheme, getSystemTheme, type Theme } from '@/lib/theme';
+import {
+  toggleTheme,
+  getStoredTheme,
+  getSystemTheme,
+  getThemeMode,
+  THEME_CHANGE_EVENT,
+  type Theme,
+} from '@/lib/theme';
 
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('latte');
@@ -13,6 +20,11 @@ export default function ThemeToggle() {
   useEffect(() => {
     const t = getStoredTheme() ?? getSystemTheme();
     setTheme(t);
+    const onThemeChange = (event: Event) => {
+      setTheme((event as CustomEvent<Theme>).detail);
+    };
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
   }, []);
 
   function handleToggle() {
@@ -20,20 +32,20 @@ export default function ThemeToggle() {
     setTheme(next);
   }
 
-  const isLatte = theme === 'latte';
+  const isLight = getThemeMode(theme) === 'light';
 
   return (
     <button
       id="theme-toggle"
       onClick={handleToggle}
-      title={isLatte ? '다크 모드로 전환 (Mocha)' : '라이트 모드로 전환 (Latte)'}
+      title={isLight ? '다크 모드로 전환' : '라이트 모드로 전환'}
       className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
       style={{
         background: 'var(--color-bg-surface)',
         color: 'var(--color-text-secondary)',
       }}
     >
-      {isLatte ? (
+      {isLight ? (
         /* 달 아이콘 (다크로 전환) */
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />

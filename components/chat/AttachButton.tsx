@@ -40,7 +40,7 @@ export default function AttachButton({ onFiles, disabled }: Props) {
         onClick={() => inputRef.current?.click()}
         disabled={disabled}
         title="파일 첨부 (이미지, PDF, 문서)"
-        className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+        className="flex h-8 w-full flex-shrink-0 items-center justify-center rounded-lg transition-colors"
         style={{
           color: 'var(--color-text-muted)',
           background: 'transparent',

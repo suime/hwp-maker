@@ -521,13 +521,7 @@ export default function DocumentVariablesPanel() {
           />
         ) : (
           <div className="space-y-3">
-            <section
-              className="rounded-lg border p-3"
-              style={{
-                borderColor: 'var(--color-bg-border)',
-                background: 'var(--color-bg-surface)',
-              }}
-            >
+            <PresetSection>
               <div className="space-y-2">
                 <button
                   type="button"
@@ -537,7 +531,7 @@ export default function DocumentVariablesPanel() {
                   aria-expanded={!isDocumentInfoCollapsed}
                   title={isDocumentInfoCollapsed ? '문서 기본 정보 펼치기' : '문서 기본 정보 접기'}
                 >
-                  <span>문서 기본 정보</span>
+                  <PresetSectionTitle>문서 기본 정보</PresetSectionTitle>
                   <span
                     className="text-[10px]"
                     style={{ color: 'var(--color-text-muted)' }}
@@ -584,33 +578,35 @@ export default function DocumentVariablesPanel() {
                   </>
                 )}
               </div>
-            </section>
+            </PresetSection>
 
-            {variables.length === 0 ? (
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                정의된 문서 변수가 없습니다.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {variables.map((variable, index) => (
-                  <DocumentVariableInput
-                    key={index}
-                    index={index}
-                    variable={variable}
-                    value={documentVariables.values[variable.name] ?? ''}
-                    options={resolveTemplateVariableOptions(variable, documentVariables.values)}
-                    isGenerating={generatingVariableName === variable.name}
-                    onInsert={() => handleInsertVariable(
-                      variable,
-                      stripThinkTags(documentVariables.values[variable.name] ?? '')
-                    )}
-                    onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
-                    onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
-                    onDelete={() => handleDeleteVariable(index)}
-                  />
-                ))}
-              </div>
-            )}
+            <PresetSection title="문서 변수">
+              {variables.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  정의된 문서 변수가 없습니다.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {variables.map((variable, index) => (
+                    <DocumentVariableInput
+                      key={index}
+                      index={index}
+                      variable={variable}
+                      value={documentVariables.values[variable.name] ?? ''}
+                      options={resolveTemplateVariableOptions(variable, documentVariables.values)}
+                      isGenerating={generatingVariableName === variable.name}
+                      onInsert={() => handleInsertVariable(
+                        variable,
+                        stripThinkTags(documentVariables.values[variable.name] ?? '')
+                      )}
+                      onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
+                      onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                      onDelete={() => handleDeleteVariable(index)}
+                    />
+                  ))}
+                </div>
+              )}
+            </PresetSection>
           </div>
         )}
       </div>
@@ -671,6 +667,32 @@ function normalizeVariableForType(variable: AdvancedTemplateVariable): AdvancedT
     script: '',
     prompt: '',
   };
+}
+
+function PresetSection({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <section
+      className="space-y-3 rounded-xl border p-3.5 shadow-sm"
+      style={{
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 5%, var(--color-bg-base)), var(--color-bg-base) 56px)',
+        borderColor: 'color-mix(in srgb, var(--color-brand) 32%, var(--color-bg-border))',
+      }}
+    >
+      {title && <PresetSectionTitle>{title}</PresetSectionTitle>}
+      {children}
+    </section>
+  );
+}
+
+function PresetSectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="h-4 w-1 rounded-full" style={{ background: 'var(--color-brand)' }} />
+      <p className="text-xs font-semibold" style={{ color: 'var(--color-brand)' }}>
+        {children}
+      </p>
+    </div>
+  );
 }
 
 function HeaderIconButton({

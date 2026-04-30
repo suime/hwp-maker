@@ -37,7 +37,8 @@ export default function RootLayout({
             (function() {
               try {
                 var stored = localStorage.getItem('hwp-maker:theme');
-                var theme = stored === 'latte' || stored === 'mocha'
+                var themes = ['latte', 'mocha', 'github-light', 'github-dark', 'vscode-light', 'vscode-dark', 'one-dark', 'dracula'];
+                var theme = themes.indexOf(stored) >= 0
                   ? stored
                   : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'mocha' : 'latte');
                 document.documentElement.setAttribute('data-theme', theme);

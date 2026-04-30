@@ -119,6 +119,259 @@
   --color-scrollbar-hover: var(--ctp-overlay0);
 }
 
+/* --- GitHub Light ---------------------------------------------------------- */
+[data-theme="github-light"] {
+  --ctp-rosewater: #bc4c00;
+  --ctp-flamingo:  #cf222e;
+  --ctp-pink:      #bf3989;
+  --ctp-mauve:     #8250df;
+  --ctp-red:       #cf222e;
+  --ctp-maroon:    #a40e26;
+  --ctp-peach:     #bc4c00;
+  --ctp-yellow:    #9a6700;
+  --ctp-green:     #1a7f37;
+  --ctp-teal:      #0a7f8c;
+  --ctp-sky:       #0969da;
+  --ctp-sapphire:  #0969da;
+  --ctp-blue:      #0969da;
+  --ctp-lavender:  #8250df;
+  --ctp-text:      #24292f;
+  --ctp-subtext1:  #57606a;
+  --ctp-subtext0:  #6e7781;
+  --ctp-overlay2:  #8c959f;
+  --ctp-overlay1:  #afb8c1;
+  --ctp-overlay0:  #d0d7de;
+  --ctp-surface2:  #d8dee4;
+  --ctp-surface1:  #d0d7de;
+  --ctp-surface0:  #eaeef2;
+  --ctp-base:      #ffffff;
+  --ctp-mantle:    #f6f8fa;
+  --ctp-crust:     #eaeef2;
+
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    #0550ae;
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface1);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay2);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay2);
+}
+
+/* --- GitHub Dark ----------------------------------------------------------- */
+[data-theme="github-dark"] {
+  --ctp-rosewater: #ffa657;
+  --ctp-flamingo:  #ff7b72;
+  --ctp-pink:      #db61a2;
+  --ctp-mauve:     #d2a8ff;
+  --ctp-red:       #ff7b72;
+  --ctp-maroon:    #ffa198;
+  --ctp-peach:     #ffa657;
+  --ctp-yellow:    #d29922;
+  --ctp-green:     #3fb950;
+  --ctp-teal:      #39c5cf;
+  --ctp-sky:       #58a6ff;
+  --ctp-sapphire:  #79c0ff;
+  --ctp-blue:      #58a6ff;
+  --ctp-lavender:  #d2a8ff;
+  --ctp-text:      #e6edf3;
+  --ctp-subtext1:  #c9d1d9;
+  --ctp-subtext0:  #8b949e;
+  --ctp-overlay2:  #6e7681;
+  --ctp-overlay1:  #484f58;
+  --ctp-overlay0:  #30363d;
+  --ctp-surface2:  #30363d;
+  --ctp-surface1:  #21262d;
+  --ctp-surface0:  #161b22;
+  --ctp-base:      #0d1117;
+  --ctp-mantle:    #010409;
+  --ctp-crust:     #010409;
+
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface2);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-subtext0);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay2);
+}
+
+/* --- VS Code Light --------------------------------------------------------- */
+[data-theme="vscode-light"] {
+  --ctp-red:       #a31515;
+  --ctp-yellow:    #795e26;
+  --ctp-green:     #008000;
+  --ctp-blue:      #007acc;
+  --ctp-sapphire:  #006ab1;
+  --ctp-mauve:     #af00db;
+  --ctp-text:      #1f1f1f;
+  --ctp-subtext1:  #424242;
+  --ctp-overlay2:  #6c6c6c;
+  --ctp-surface2:  #d4d4d4;
+  --ctp-surface1:  #dcdcdc;
+  --ctp-surface0:  #f3f3f3;
+  --ctp-base:      #ffffff;
+  --ctp-mantle:    #f3f3f3;
+  --ctp-crust:     #e5e5e5;
+
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface2);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay2);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay2);
+}
+
+/* --- VS Code Dark ---------------------------------------------------------- */
+[data-theme="vscode-dark"] {
+  --ctp-red:       #f44747;
+  --ctp-yellow:    #dcdcaa;
+  --ctp-green:     #6a9955;
+  --ctp-blue:      #007acc;
+  --ctp-sapphire:  #3794ff;
+  --ctp-mauve:     #c586c0;
+  --ctp-text:      #cccccc;
+  --ctp-subtext1:  #bdbdbd;
+  --ctp-overlay2:  #858585;
+  --ctp-overlay1:  #6a6a6a;
+  --ctp-surface2:  #3c3c3c;
+  --ctp-surface1:  #2d2d30;
+  --ctp-surface0:  #252526;
+  --ctp-base:      #1e1e1e;
+  --ctp-mantle:    #181818;
+  --ctp-crust:     #121212;
+
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface2);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay2);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay1);
+}
+
+/* --- One Dark -------------------------------------------------------------- */
+[data-theme="one-dark"] {
+  --ctp-red:       #e06c75;
+  --ctp-yellow:    #e5c07b;
+  --ctp-green:     #98c379;
+  --ctp-blue:      #61afef;
+  --ctp-sapphire:  #56b6c2;
+  --ctp-mauve:     #c678dd;
+  --ctp-text:      #abb2bf;
+  --ctp-subtext1:  #9da5b4;
+  --ctp-overlay2:  #7f848e;
+  --ctp-overlay1:  #5c6370;
+  --ctp-surface2:  #3e4451;
+  --ctp-surface1:  #353b45;
+  --ctp-surface0:  #2c313a;
+  --ctp-base:      #282c34;
+  --ctp-mantle:    #21252b;
+  --ctp-crust:     #1b1f27;
+
+  --color-brand:          var(--ctp-blue);
+  --color-brand-hover:    var(--ctp-sapphire);
+  --color-accent:         var(--ctp-mauve);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface2);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay2);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay1);
+}
+
+/* --- Dracula --------------------------------------------------------------- */
+[data-theme="dracula"] {
+  --ctp-red:       #ff5555;
+  --ctp-yellow:    #f1fa8c;
+  --ctp-green:     #50fa7b;
+  --ctp-blue:      #8be9fd;
+  --ctp-sapphire:  #80ffea;
+  --ctp-mauve:     #bd93f9;
+  --ctp-text:      #f8f8f2;
+  --ctp-subtext1:  #e6e6dc;
+  --ctp-overlay2:  #bfbfb8;
+  --ctp-overlay1:  #6272a4;
+  --ctp-surface2:  #44475a;
+  --ctp-surface1:  #343746;
+  --ctp-surface0:  #2f3241;
+  --ctp-base:      #282a36;
+  --ctp-mantle:    #21222c;
+  --ctp-crust:     #191a21;
+
+  --color-brand:          var(--ctp-mauve);
+  --color-brand-hover:    var(--ctp-blue);
+  --color-accent:         var(--ctp-blue);
+  --color-success:        var(--ctp-green);
+  --color-warning:        var(--ctp-yellow);
+  --color-error:          var(--ctp-red);
+  --color-bg-base:        var(--ctp-base);
+  --color-bg-panel:       var(--ctp-mantle);
+  --color-bg-surface:     var(--ctp-surface0);
+  --color-bg-surface2:    var(--ctp-surface1);
+  --color-bg-border:      var(--ctp-surface2);
+  --color-text-primary:   var(--ctp-text);
+  --color-text-secondary: var(--ctp-subtext1);
+  --color-text-muted:     var(--ctp-overlay2);
+  --color-doc-canvas:     var(--ctp-crust);
+  --color-doc-paper:      #ffffff;
+  --color-scrollbar:      var(--ctp-surface2);
+  --color-scrollbar-hover: var(--ctp-overlay1);
+}
+
 /* OS 다크모드 자동 적용 (data-theme 미설정 시 fallback) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="latte"]) {

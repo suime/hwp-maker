@@ -1,7 +1,3 @@
-'use client';
-
-import ThemeToggle from '@/components/ui/ThemeToggle';
-
 export default function TopBar() {
   return (
     <header
@@ -38,26 +34,7 @@ export default function TopBar() {
           새 문서.hwpx
         </button>
       </div>
-
-      {/* 액션 버튼 */}
-      <div className="flex items-center gap-1.5">
-        <ThemeToggle />
-
-        <button
-          id="btn-save"
-          className="btn btn-ghost"
-          title="현재 상태를 세션에 저장"
-        >
-          저장
-        </button>
-        <button
-          id="btn-export"
-          className="btn btn-primary"
-          title="hwpx 파일로 내보내기"
-        >
-          ↓ 내보내기
-        </button>
-      </div>
+      <div className="w-8" aria-hidden="true" />
     </header>
   );
 }

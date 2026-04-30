@@ -1,11 +1,23 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import { requestCompletion } from '@/lib/ai/client';
 import type { AiConfig } from '@/lib/ai/client';
 import { clearAllSessions } from '@/lib/chat/sessions';
 import { clearSession } from '@/lib/session';
+import {
+  applyTheme,
+  getStoredTheme,
+  getSystemTheme,
+  getThemeForMode,
+  getThemeMode,
+  getThemePreset,
+  THEME_CHANGE_EVENT,
+  THEME_PRESETS,
+  type Theme,
+  type ThemeMode,
+} from '@/lib/theme';
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
 type DataAction = 'chat' | 'templates' | 'app';
@@ -27,6 +39,17 @@ export default function SettingsPanel({
   const [testMessage, setTestMessage] = useState('');
   const [saved, setSaved] = useState(false);
   const [dataMessage, setDataMessage] = useState('');
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme() ?? getSystemTheme());
+
+  const currentThemePreset = getThemePreset(theme);
+
+  useEffect(() => {
+    const onThemeChange = (event: Event) => {
+      setTheme((event as CustomEvent<Theme>).detail);
+    };
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
+  }, []);
 
   function handleSave() {
     saveAiConfig(config);
@@ -103,6 +126,15 @@ export default function SettingsPanel({
     resetAppStorage();
     showDataMessage(messages[action].done);
     window.setTimeout(() => window.location.reload(), 700);
+  }
+
+  function handleThemeChange(nextTheme: Theme) {
+    applyTheme(nextTheme);
+    setTheme(nextTheme);
+  }
+
+  function handleThemeModeChange(mode: ThemeMode) {
+    handleThemeChange(getThemeForMode(theme, mode));
   }
 
   return (
@@ -222,6 +254,92 @@ export default function SettingsPanel({
         {/* 편집기 설정 */}
         <SettingsSection>
           <SettingsSectionTitle>편집기 설정</SettingsSectionTitle>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="block text-xs" style={{ color: 'var(--color-text-secondary)' }}>현재 테마</span>
+                <span className="block truncate text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                  {currentThemePreset.label}
+                </span>
+              </div>
+              <div className="flex rounded-lg p-1" style={{ background: 'var(--color-bg-surface)' }}>
+                <button
+                  type="button"
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${getThemeMode(theme) === 'light' ? 'shadow-sm' : ''}`}
+                  style={{
+                    background: getThemeMode(theme) === 'light' ? 'var(--color-bg-base)' : 'transparent',
+                    color: getThemeMode(theme) === 'light' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}
+                  onClick={() => handleThemeModeChange('light')}
+                >
+                  라이트
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${getThemeMode(theme) === 'dark' ? 'shadow-sm' : ''}`}
+                  style={{
+                    background: getThemeMode(theme) === 'dark' ? 'var(--color-bg-base)' : 'transparent',
+                    color: getThemeMode(theme) === 'dark' ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                  }}
+                  onClick={() => handleThemeModeChange('dark')}
+                >
+                  다크
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              {THEME_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handleThemeChange(preset.id)}
+                  className="flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-[var(--color-bg-surface)]"
+                  style={{
+                    background: theme === preset.id
+                      ? 'color-mix(in srgb, var(--color-brand) 10%, transparent)'
+                      : 'transparent',
+                    borderColor: theme === preset.id
+                      ? 'color-mix(in srgb, var(--color-brand) 45%, var(--color-bg-border))'
+                      : 'var(--color-bg-border)',
+                  }}
+                >
+                  <span className="flex flex-shrink-0 overflow-hidden rounded border" style={{ borderColor: 'var(--color-bg-border)' }}>
+                    {preset.swatches.map((color) => (
+                      <span
+                        key={color}
+                        className="h-6 w-3"
+                        style={{ background: color }}
+                      />
+                    ))}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-xs font-medium"
+                      style={{ color: theme === preset.id ? 'var(--color-brand)' : 'var(--color-text-primary)' }}
+                    >
+                      {preset.label}
+                    </span>
+                    <span className="block truncate text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                      {preset.description}
+                    </span>
+                  </span>
+                  <span
+                    className="rounded px-1.5 py-0.5 text-[10px]"
+                    style={{
+                      background: 'var(--color-bg-surface)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {preset.mode === 'light' ? 'Light' : 'Dark'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="divider" />
+
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>사이드바 위치</span>
             <div className="flex bg-surface rounded-lg p-1" style={{ background: 'var(--color-bg-surface)' }}>

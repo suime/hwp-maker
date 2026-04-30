@@ -321,6 +321,26 @@ function MessageContent({ text }: { text: string }) {
   return nodes.length > 0 ? <>{nodes}</> : null;
 }
 
+function ChatSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section
+      className="mt-3 space-y-3 rounded-xl border p-3.5 shadow-sm"
+      style={{
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 5%, var(--color-bg-base)), var(--color-bg-base) 56px)',
+        borderColor: 'color-mix(in srgb, var(--color-brand) 32%, var(--color-bg-border))',
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-4 w-1 rounded-full" style={{ background: 'var(--color-brand)' }} />
+        <p className="text-xs font-semibold" style={{ color: 'var(--color-brand)' }}>
+          {title}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function ChatPanel() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -797,75 +817,77 @@ export default function ChatPanel() {
             <span className="text-sm font-bold">AI 어시스턴트</span>
           </button>
         </div>
-        <div className="mt-2 flex items-center gap-1.5">
-          <select
-            value={currentSessionId ?? ''}
-            onChange={(e) => {
-              if (e.target.value) {
-                handleSelectSession(e.target.value);
-              }
-            }}
-            className="min-w-0 flex-1 rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
-            title="채팅 세션 선택"
-          >
-            <option value="" disabled>
-              세션 선택
-            </option>
-            {sessionSummaries.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.title} ({session.messageCount})
+        <ChatSection title="채팅 세션">
+          <div className="flex items-center gap-1.5">
+            <select
+              value={currentSessionId ?? ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectSession(e.target.value);
+                }
+              }}
+              className="min-w-0 flex-1 rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
+              title="채팅 세션 선택"
+            >
+              <option value="" disabled>
+                세션 선택
               </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => handleSelectSession(null)}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]"
-            title="새 세션"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={handleRenameCurrentSession}
-            disabled={!currentSessionId}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-            title="세션 이름 변경"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteCurrentSession}
-            disabled={!currentSessionId}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title="현재 세션 삭제"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              refreshSessionSummaries();
-              setShowSessionModal(true);
-            }}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]"
-            title="세션 관리"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
+              {sessionSummaries.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.title} ({session.messageCount})
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => handleSelectSession(null)}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]"
+              title="새 세션"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={handleRenameCurrentSession}
+              disabled={!currentSessionId}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+              title="세션 이름 변경"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteCurrentSession}
+              disabled={!currentSessionId}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+              title="현재 세션 삭제"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                refreshSessionSummaries();
+                setShowSessionModal(true);
+              }}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]"
+              title="세션 관리"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </ChatSection>
       </div>
 
       {/* 메시지 목록 */}
@@ -931,7 +953,7 @@ export default function ChatPanel() {
       {/* 입력창 */}
       <form
         onSubmit={handleSubmit}
-        className="p-3 border-t flex gap-2 items-end"
+        className="p-3 border-t flex gap-2 items-stretch"
         style={{ borderColor: 'var(--color-bg-border)' }}
       >
         <textarea
@@ -951,13 +973,13 @@ export default function ChatPanel() {
           rows={2}
           className="flex-1 resize-none input"
         />
-        <div className="flex flex-shrink-0 flex-col items-stretch gap-1">
+        <div className="flex w-14 flex-shrink-0 flex-col items-stretch gap-1">
           <AttachButton onFiles={handleFiles} disabled={isLoading} />
           <button
             id="chat-send"
             type="submit"
             disabled={!canSend}
-            className="btn btn-primary min-h-8 flex-shrink-0 px-3"
+            className="btn btn-primary h-8 flex-shrink-0 px-3"
           >
             전송
           </button>
