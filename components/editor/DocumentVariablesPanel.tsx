@@ -16,10 +16,15 @@ import {
 } from '@/lib/templates/advanced';
 import {
   createDocumentVariablesState,
+  deleteDocumentVariableProfile,
+  getDocumentVariableProfiles,
   loadDocumentVariables,
   saveDocumentVariables,
+  saveDocumentVariableProfile,
+  subscribeDocumentVariableProfiles,
   subscribeDocumentVariables,
   type ActiveDocumentVariables,
+  type DocumentVariableProfile,
 } from '@/lib/templates/documentVariables';
 
 export default function DocumentVariablesPanel() {
@@ -28,19 +33,24 @@ export default function DocumentVariablesPanel() {
   const [isApplying, setIsApplying] = useState(false);
   const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(true);
   const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
+  const [variableProfiles, setVariableProfiles] = useState<DocumentVariableProfile[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const refresh = () => setDocumentVariables(loadDocumentVariables());
+    const refreshProfiles = () => setVariableProfiles(getDocumentVariableProfiles());
     refresh();
+    refreshProfiles();
 
     const unsubscribeVariables = subscribeDocumentVariables(refresh);
+    const unsubscribeProfiles = subscribeDocumentVariableProfiles(refreshProfiles);
     const unsubscribeEditor = subscribeEditor((instance) => {
       setIsEditorReady(!!instance);
     });
 
     return () => {
       unsubscribeVariables();
+      unsubscribeProfiles();
       unsubscribeEditor();
     };
   }, []);
@@ -217,6 +227,28 @@ export default function DocumentVariablesPanel() {
     URL.revokeObjectURL(url);
   }
 
+  function handleSaveProfile() {
+    if (!documentVariables) return;
+    const name = window.prompt('문서 변수 프리셋 이름을 입력하세요.', documentVariables.sourceName || '문서 변수 프리셋');
+    if (!name?.trim()) return;
+    const profile = saveDocumentVariableProfile(documentVariables, name.trim());
+    updateDocumentVariables(profile.state);
+  }
+
+  function handleSelectProfile(profileId: string) {
+    const profile = variableProfiles.find((item) => item.id === profileId);
+    if (!profile) return;
+    updateDocumentVariables(profile.state);
+  }
+
+  function handleDeleteProfile() {
+    if (!documentVariables) return;
+    const profile = variableProfiles.find((item) => item.id === documentVariables.sourceId);
+    if (!profile) return;
+    if (!confirm(`"${profile.name}" 문서 변수 프리셋을 삭제할까요?`)) return;
+    deleteDocumentVariableProfile(profile.id);
+  }
+
   async function handleImportYaml(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -355,15 +387,18 @@ export default function DocumentVariablesPanel() {
 
   const variables = documentVariables?.definition.variables ?? [];
   const aiCount = variables.filter((variable) => variable.type === 'ai').length;
+  const selectedPresetId = documentVariables && variableProfiles.some((profile) => profile.id === documentVariables.sourceId)
+    ? documentVariables.sourceId
+    : '';
 
   return (
     <div className="flex h-full flex-col" style={{ background: 'var(--color-bg-panel)' }}>
       <div className="panel-header border-b border-[var(--color-bg-border)]">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">문서 변수</h2>
+            <h2 className="text-sm font-semibold">프리셋</h2>
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              문서의 변수 값을 입력하고 적용하세요
+              시스템 프롬프트와 문서 변수를 함께 관리하세요
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-1">
@@ -382,11 +417,51 @@ export default function DocumentVariablesPanel() {
             </HeaderIconButton>
           </div>
         </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <select
+            value={selectedPresetId}
+            onChange={(event) => handleSelectProfile(event.target.value)}
+            className="min-w-0 flex-1 rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
+            title="AI 프리셋 선택"
+          >
+            <option value="" disabled>
+              AI 프리셋 선택
+            </option>
+            {variableProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+          <HeaderIconButton
+            title="현재 변수 세트를 AI 프리셋으로 저장"
+            onClick={handleSaveProfile}
+            disabled={!documentVariables}
+          >
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <path d="M17 21v-8H7v8" />
+            <path d="M7 3v5h8" />
+          </HeaderIconButton>
+          <HeaderIconButton
+            title="현재 AI 프리셋 삭제"
+            onClick={handleDeleteProfile}
+            disabled={!selectedPresetId}
+          >
+            <path d="M3 6h18" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </HeaderIconButton>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
         {!documentVariables ? (
-          <EmptyState onCreate={createEmptyDocumentVariables} onImport={() => importInputRef.current?.click()} />
+          <EmptyState
+            profiles={variableProfiles}
+            onCreate={createEmptyDocumentVariables}
+            onImport={() => importInputRef.current?.click()}
+            onSelectProfile={handleSelectProfile}
+          />
         ) : (
           <div className="space-y-3">
             <section
@@ -579,11 +654,15 @@ function HeaderIconButton({
 }
 
 function EmptyState({
+  profiles,
   onCreate,
   onImport,
+  onSelectProfile,
 }: {
+  profiles: DocumentVariableProfile[];
   onCreate: () => void;
   onImport: () => void;
+  onSelectProfile: (profileId: string) => void;
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-4 text-center">
@@ -604,12 +683,28 @@ function EmptyState({
         </svg>
       </div>
       <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-        문서 변수가 없습니다
+        프리셋 변수가 없습니다
       </p>
       <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-        변수 정의 YAML이 있는 템플릿을 선택하면 여기에 입력 항목이 표시됩니다.
+        AI 프리셋을 선택하거나 변수 YAML을 가져와 시작하세요.
       </p>
       <div className="mt-4 flex w-full max-w-48 flex-col gap-2">
+        {profiles.length > 0 && (
+          <select
+            defaultValue=""
+            onChange={(event) => onSelectProfile(event.target.value)}
+            className="input py-1.5 text-xs"
+          >
+            <option value="" disabled>
+              AI 프리셋 선택
+            </option>
+            {profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button type="button" onClick={onCreate} className="btn btn-primary py-1.5 text-xs">
           새 변수 세트 만들기
         </button>
@@ -650,20 +745,20 @@ function DocumentVariableInput({
       className="block space-y-1 rounded-lg border p-2.5 transition-colors hover:bg-[var(--color-bg-surface)]"
       style={{ borderColor: 'var(--color-bg-border)' }}
     >
-      <button
-        type="button"
-        onClick={onInsert}
-        disabled={isGenerating}
-        className="flex w-full items-center justify-between gap-2 text-left text-[11px] font-medium disabled:cursor-wait disabled:opacity-75"
-        title={
-          isGenerating
-            ? 'AI 응답 생성 중입니다'
-            : variable.type === 'ai'
-              ? 'AI 응답을 생성해 현재 커서 위치에 삽입'
-              : '현재 커서 위치에 변수 값 삽입'
-        }
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onInsert}
+          disabled={isGenerating}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] font-medium disabled:cursor-wait disabled:opacity-75"
+          title={
+            isGenerating
+              ? 'AI 응답 생성 중입니다'
+              : variable.type === 'ai'
+                ? 'AI 응답을 생성해 현재 커서 위치에 삽입'
+                : '현재 커서 위치에 변수 값 삽입'
+          }
+        >
           <span
             className="rounded-full border px-1.5 py-0.5 text-[9px] font-semibold leading-none"
             style={{
@@ -677,28 +772,22 @@ function DocumentVariableInput({
           <span className="truncate" style={{ color: 'var(--color-text-secondary)' }}>
             {variable.label || variable.name}
           </span>
-        </span>
-        <code className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+        </button>
+        <code className="flex-shrink-0 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
           {'{{'}{variable.name}{'}}'}
         </code>
-      </button>
-      <div className="flex justify-end gap-1">
-        <button
-          type="button"
+        <VariableIconButton
+          title={isEditing ? '편집 닫기' : '변수 편집'}
           onClick={() => setIsEditing((value) => !value)}
-          className="text-[10px] font-medium"
-          style={{ color: 'var(--color-text-muted)' }}
         >
-          {isEditing ? '편집 닫기' : '편집'}
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-[10px] font-medium"
-          style={{ color: 'var(--ctp-red)' }}
-        >
-          삭제
-        </button>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </VariableIconButton>
+        <VariableIconButton title="변수 삭제" onClick={onDelete} danger>
+          <path d="M3 6h18" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </VariableIconButton>
       </div>
 
       {isEditing && (
@@ -764,6 +853,46 @@ function DocumentVariableInput({
         </span>
       )}
     </div>
+  );
+}
+
+function VariableIconButton({
+  title,
+  danger,
+  onClick,
+  children,
+}: {
+  title: string;
+  danger?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] transition-colors ${
+        danger
+          ? 'text-[var(--color-text-muted)] hover:bg-red-500/10 hover:text-red-500'
+          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]'
+      }`}
+      title={title}
+      aria-label={title}
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {children}
+      </svg>
+    </button>
   );
 }
 

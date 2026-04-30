@@ -5,7 +5,7 @@
  * Base URL, API Key, 모델명을 localStorage에 저장합니다.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import type { AiConfig } from '@/lib/ai/client';
 
@@ -14,15 +14,7 @@ interface Props {
 }
 
 export default function AiConfigModal({ onClose }: Props) {
-  const [config, setConfig] = useState<AiConfig>({
-    baseUrl: '',
-    apiKey: '',
-    model: '',
-  });
-
-  useEffect(() => {
-    setConfig(loadAiConfig());
-  }, []);
+  const [config, setConfig] = useState<AiConfig>(() => loadAiConfig());
 
   function handleSave() {
     saveAiConfig(config);

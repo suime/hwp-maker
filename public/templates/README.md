@@ -11,12 +11,9 @@
 
 ## 문서 변수 YAML
 
-한글 파일과 같은 이름의 YAML 파일을 함께 두면 문서 변수 정의로 인식됩니다.
+문서 변수 YAML은 한글 템플릿 파일과 분리해서 관리합니다. 한글 파일과 같은 이름의 YAML 파일을 이 디렉토리에 함께 두어도 템플릿 선택 시 자동으로 불러오지 않습니다.
 
-- `보고서.hwp` + `보고서.yaml`
-- `보고서.hwpx` + `보고서.yaml`
-
-한글 파일 본문에는 `{{변수명}}` 형태의 변수를 넣고, YAML에서 입력 방식을 정의합니다. 템플릿 파일은 템플릿 탭에서 선택하고, 변수 값 입력과 적용은 문서 변수 탭에서 처리합니다.
+한글 파일 본문에는 `{{변수명}}` 형태의 변수를 넣고, 프리셋 탭에서 YAML을 가져오거나 직접 변수 세트를 작성합니다. 작성한 변수 세트는 시스템 프롬프트와 함께 AI 프리셋으로 저장해 여러 템플릿에서 재사용할 수 있습니다.
 
 ```yaml
 document:
@@ -99,7 +96,7 @@ variables:
 추가 기능:
 
 - `script`: `date("yyyy-MM-dd")`, `currentYear`, `number(value("amount")) * 1.1`, `text(value("name")).trim()` 같은 식을 사용할 수 있습니다. 여러 줄 스크립트는 `return` 문으로 값을 반환하세요. 이전 `type: date` YAML은 `script` 타입으로 자동 변환됩니다.
-- `document`: 문서 기본 정보 섹션입니다. `author`, `description`, `systemPrompt`를 모아 적을 수 있으며 문서 변수 탭에서 수정할 수 있습니다. 기존처럼 최상위에 `author`, `description`, `systemPrompt`를 직접 적는 형식도 지원합니다.
+- `document`: 문서 기본 정보 섹션입니다. `author`, `description`, `systemPrompt`를 모아 적을 수 있으며 프리셋 탭에서 수정할 수 있습니다. 기존처럼 최상위에 `author`, `description`, `systemPrompt`를 직접 적는 형식도 지원합니다.
 - `author`: 문서 작성자입니다. AI 변수 프롬프트에서 `{{author}}` 또는 `{{documentAuthor}}`로 참조할 수 있고, 문서에 같은 플레이스홀더가 있으면 치환됩니다.
 - `description`: 문서 기본 설명입니다. AI 변수 프롬프트에서 `{{documentDescription}}`로 참조할 수 있고, 문서에 같은 플레이스홀더가 있으면 치환됩니다.
 - `systemPrompt`: 문서 변수 세트에 연결되는 시스템 프롬프트입니다. `ai` 변수 생성과 채팅 요청에 함께 전달됩니다.

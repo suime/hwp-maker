@@ -9,7 +9,7 @@ AI 도움을 받아 한글 HWP/HWPX 문서를 만들고 편집하는 self-hostab
 기본 흐름은 다음과 같습니다.
 
 1. 사용자가 채팅 패널에 문서 작성/수정 요청을 입력합니다.
-2. 현재 문서 내용, 선택한 AI 프로필, 첨부파일, 템플릿 정보를 AI 컨텍스트로 전달합니다.
+2. 현재 문서 내용, 선택한 AI 프리셋, 첨부파일, 템플릿 정보를 AI 컨텍스트로 전달합니다.
 3. AI가 일반 답변과 함께 `hwp-maker-actions` 액션 블록을 생성합니다.
 4. 앱이 액션을 파싱해 rhwp 에디터에 텍스트 삽입, 치환, 필드 채우기 등을 적용합니다.
 5. 사용자는 rhwp 미리보기/편집기에서 결과를 확인하고 HWP/HWPX로 내려받습니다.
@@ -35,7 +35,7 @@ AI 도움을 받아 한글 HWP/HWPX 문서를 만들고 편집하는 self-hostab
 - rhwp WASM 기반 HWP/HWPX 미리보기 및 편집
 - AI 응답의 `hwp-maker-actions` / `rhwp-actions` 액션 실행
 - OpenAI-compatible API 및 Ollama-compatible endpoint 설정
-- AI 프로필 선택 및 사용자 프로필 저장
+- AI 프리셋별 시스템 프롬프트 및 문서 변수 저장
 - 채팅 세션 저장, 복원, 이름 변경, 삭제
 - 텍스트/문서/이미지 첨부파일 처리
 - 내장 HWP/HWPX 템플릿 목록 로드
@@ -58,10 +58,10 @@ hwp-maker/
 │     └─ template-ai/route.ts   # 문서 변수 ai 값 생성
 ├─ components/
 │  ├─ chat/                     # 채팅, 첨부파일, 세션 UI
-│  ├─ editor/                   # 에디터 레이아웃, 미리보기, 템플릿, 문서 변수, 프로필, 설정
+│  ├─ editor/                   # 에디터 레이아웃, 미리보기, 템플릿, 프리셋, 설정
 │  └─ ui/                       # 상단바, 아이콘 레일, 테마/설정 UI
 ├─ lib/
-│  ├─ ai/                       # AI 설정, 프로필, rhwp action 파싱
+│  ├─ ai/                       # AI 설정, rhwp action 파싱, 클라이언트 추상화
 │  ├─ attachment/               # 첨부파일 읽기/처리
 │  ├─ chat/                     # 채팅 세션 저장소
 │  ├─ rhwp/                     # rhwp editor bridge
@@ -137,14 +137,9 @@ AI가 문서를 수정하려면 `SKILLS.md`에 정의된 `hwp-maker-actions` 또
 
 `public/templates/`에 `.hwp` 또는 `.hwpx` 파일을 넣으면 템플릿 패널에서 자동으로 표시됩니다.
 
-같은 이름의 `.yaml` 또는 `.yml` 파일이 있으면 문서 변수 정의로 인식합니다.
+문서 변수는 템플릿 파일과 분리되어 관리됩니다. 템플릿과 같은 이름의 `.yaml` 또는 `.yml` 파일이 있어도 자동으로 불러오지 않습니다.
 
-```text
-보고서.hwpx
-보고서.yaml
-```
-
-한글 문서 본문에는 `{{변수명}}` 형식의 플레이스홀더를 넣고 YAML에서 입력 방식을 정의합니다. 템플릿 선택은 `템플릿` 탭에서, 변수 입력/생성/치환은 `문서 변수` 탭에서 수행합니다.
+한글 문서 본문에는 `{{변수명}}` 형식의 플레이스홀더를 넣고, 프리셋 탭에서 변수 세트를 직접 만들거나 YAML을 가져와 사용합니다. 작성한 변수 세트는 시스템 프롬프트와 함께 AI 프리셋으로 저장해 다른 템플릿에도 재사용할 수 있습니다.
 
 지원 변수 타입:
 
@@ -153,7 +148,7 @@ AI가 문서를 수정하려면 `SKILLS.md`에 정의된 `hwp-maker-actions` 또
 - `script`: 날짜 생성, 숫자 계산, 문자열 파싱을 위한 JavaScript 식 실행
 - `ai`: 현재 변수 값을 바탕으로 AI가 텍스트 생성
 
-문서 변수 YAML은 문서 기본 정보(`document.author`, `document.description`, `document.systemPrompt`), 변수별 설명(`description`), 조건부 선택지(`optionsWhen`)도 지원합니다. 문서 기본 정보와 `systemPrompt`는 문서 변수 탭에서 수정할 수 있고, `ai` 변수 생성 및 채팅 요청에 함께 전달됩니다.
+문서 변수 YAML은 문서 기본 정보(`document.author`, `document.description`, `document.systemPrompt`), 변수별 설명(`description`), 조건부 선택지(`optionsWhen`)도 지원합니다. 문서 기본 정보와 `systemPrompt`는 프리셋 탭에서 수정할 수 있고, `ai` 변수 생성 및 채팅 요청에 함께 전달됩니다.
 
 자세한 예시는 `public/templates/README.md`를 참고하세요.
 

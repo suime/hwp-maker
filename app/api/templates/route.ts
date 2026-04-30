@@ -20,18 +20,13 @@ export async function GET() {
       .filter(file => file.endsWith('.hwp') || file.endsWith('.hwpx'))
       .map(file => {
         const name = file.replace(/\.(hwp|hwpx)$/i, '');
-        const yamlFile = files.find(candidate => candidate === `${name}.yaml` || candidate === `${name}.yml`);
 
         return {
           id: `builtin-${file}`,
           name,
-          description: yamlFile
-            ? `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 변수 정의 포함 양식 파일`
-            : `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
+          description: `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
           builtIn: true,
           filePath: `/templates/${file}`,
-          advanced: Boolean(yamlFile),
-          yamlPath: yamlFile ? `/templates/${yamlFile}` : undefined,
         };
       });
 

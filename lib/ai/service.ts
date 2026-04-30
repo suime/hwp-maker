@@ -1,6 +1,6 @@
 import { requestCompletion, AiMessage, AiCompletionOptions } from './client';
 import { loadAiConfig } from './config';
-import { getActiveProfile } from './profiles';
+import { loadDocumentVariables } from '@/lib/templates/documentVariables';
 import type { Attachment } from '@/types/attachment';
 import { MAX_CONTEXT_TEXT_LENGTH } from '@/types/attachment';
 
@@ -59,7 +59,7 @@ function buildUserContent(
 }
 
 /**
- * 활성 프로필과 설정을 바탕으로 AI 채팅 응답을 요청합니다.
+ * AI 설정과 현재 프리셋을 바탕으로 AI 채팅 응답을 요청합니다.
  * 첨부파일이 있으면 컨텍스트에 포함합니다.
  */
 export async function generateContent(
@@ -69,12 +69,7 @@ export async function generateContent(
   onChunk?: (chunk: string) => void
 ) {
   const config = loadAiConfig();
-  const profile = getActiveProfile();
-
-  const finalConfig = {
-    ...config,
-    ...(profile.configOverride || {}),
-  };
+  const systemPrompt = loadDocumentVariables()?.definition.systemPrompt || '';
 
   // 사용자 메시지 콘텐츠 (첨부파일 포함)
   const userContent = buildUserContent(userPrompt, attachments);
@@ -88,13 +83,13 @@ export async function generateContent(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messages: any[] = [
-    { role: 'system', content: profile.systemPrompt },
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
     ...history,
     userMessage,
   ];
 
   const options: AiCompletionOptions = {
-    config: finalConfig,
+    config,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     messages: messages as any,
     onChunk,

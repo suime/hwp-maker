@@ -5,11 +5,10 @@ import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import { requestCompletion } from '@/lib/ai/client';
 import type { AiConfig } from '@/lib/ai/client';
 import { clearAllSessions } from '@/lib/chat/sessions';
-import { resetProfiles } from '@/lib/ai/profiles';
 import { clearSession } from '@/lib/session';
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
-type DataAction = 'chat' | 'templates' | 'profiles' | 'app';
+type DataAction = 'chat' | 'templates' | 'app';
 
 const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
 const APP_STORAGE_PREFIX = 'hwp-maker:';
@@ -79,12 +78,8 @@ export default function SettingsPanel({
         confirm: '사용자가 추가한 템플릿을 초기화할까요?',
         done: '템플릿을 초기화했습니다.',
       },
-      profiles: {
-        confirm: '사용자 프로필과 현재 프로필 선택을 초기화할까요?',
-        done: '프로필을 초기화했습니다.',
-      },
       app: {
-        confirm: '앱의 모든 로컬 데이터를 초기화할까요? 설정, 대화, 템플릿, 프로필, 편집 세션이 모두 삭제됩니다.',
+        confirm: '앱의 모든 로컬 데이터를 초기화할까요? 설정, 대화, 템플릿, 프리셋, 편집 세션이 모두 삭제됩니다.',
         done: '앱 데이터를 모두 초기화했습니다. 화면을 새로고침합니다.',
       },
     };
@@ -100,13 +95,6 @@ export default function SettingsPanel({
 
     if (action === 'templates') {
       resetTemplates();
-      showDataMessage(messages[action].done);
-      return;
-    }
-
-    if (action === 'profiles') {
-      resetProfiles();
-      window.dispatchEvent(new Event('profiles-reset'));
       showDataMessage(messages[action].done);
       return;
     }
@@ -293,12 +281,6 @@ export default function SettingsPanel({
               title="템플릿 초기화"
               description="사용자가 추가한 내 템플릿 목록을 비웁니다."
               onClick={() => handleDataAction('templates')}
-            />
-            <DataResetButton
-              id="settings-reset-profiles"
-              title="프로필 초기화"
-              description="사용자 프로필을 삭제하고 기본 프로필 선택으로 되돌립니다."
-              onClick={() => handleDataAction('profiles')}
             />
             <DataResetButton
               id="settings-reset-app"

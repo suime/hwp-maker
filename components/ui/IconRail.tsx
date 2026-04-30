@@ -35,7 +35,7 @@ const TABS: { id: SideTab; label: string; icon: React.ReactNode }[] = [
   },
   {
     id: 'variables',
-    label: '문서 변수',
+    label: '프리셋',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 7V5a2 2 0 0 1 2-2h2" />
@@ -44,16 +44,6 @@ const TABS: { id: SideTab; label: string; icon: React.ReactNode }[] = [
         <path d="M8 21H6a2 2 0 0 1-2-2v-2" />
         <path d="M8 12h8" />
         <path d="M12 8v8" />
-      </svg>
-    ),
-  },
-  {
-    id: 'profile',
-    label: '프로필',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
       </svg>
     ),
   },

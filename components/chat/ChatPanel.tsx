@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from '@ai-sdk/react';
-import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
 import { loadAiConfig } from '@/lib/ai/config';
 import { rhwpActions } from '@/lib/rhwp/loader';
 import { parseRhwpAiResponse, stripThinkTags, type RhwpAiAction } from '@/lib/ai/rhwpCommands';
@@ -323,7 +322,6 @@ function MessageContent({ text }: { text: string }) {
 }
 
 export default function ChatPanel() {
-  const [activeProfile, setActiveProfileState] = useState<AiProfile>(() => getActiveProfile());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [processingFiles, setProcessingFiles] = useState(false);
@@ -373,8 +371,8 @@ export default function ChatPanel() {
   }, []);
 
   const effectiveSystemPrompt = useMemo(
-    () => [activeProfile.systemPrompt, documentVariableSystemPrompt].filter(Boolean).join('\n\n'),
-    [activeProfile.systemPrompt, documentVariableSystemPrompt]
+    () => documentVariableSystemPrompt,
+    [documentVariableSystemPrompt]
   );
 
   const executeRhwpAction = useCallback(async (action: RhwpAiAction) => {
@@ -587,12 +585,6 @@ export default function ChatPanel() {
     }
   }, [attachments, sendMessage, setCurrentSession]);
 
-  const handleProfileChange = (id: string) => {
-    setActiveProfile(id);
-    const profile = BUILTIN_PROFILES.find(p => p.id === id);
-    if (profile) setActiveProfileState(profile);
-  };
-
   /** 파일 목록을 처리하여 attachments에 추가 */
   const handleFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -804,39 +796,6 @@ export default function ChatPanel() {
             </svg>
             <span className="text-sm font-bold">AI 어시스턴트</span>
           </button>
-          <div
-            className="flex items-center gap-1.5 text-[var(--color-text-secondary)]"
-            title="AI 에이전트 선택"
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M12 8V4H8" />
-              <rect width="16" height="12" x="4" y="8" rx="2" />
-              <path d="M2 14h2" />
-              <path d="M20 14h2" />
-              <path d="M15 13v2" />
-              <path d="M9 13v2" />
-            </svg>
-            <select
-              value={activeProfile.id}
-              onChange={(e) => handleProfileChange(e.target.value)}
-              className="text-[11px] bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] rounded px-1.5 py-0.5 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
-              aria-label="AI 에이전트 선택"
-            >
-              {BUILTIN_PROFILES.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <select
@@ -907,7 +866,6 @@ export default function ChatPanel() {
             </svg>
           </button>
         </div>
-        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1">{activeProfile.description}</p>
       </div>
 
       {/* 메시지 목록 */}

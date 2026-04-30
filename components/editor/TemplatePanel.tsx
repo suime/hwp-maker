@@ -2,12 +2,6 @@
 
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
-import { parseAdvancedTemplateYaml } from '@/lib/templates/advanced';
-import {
-  clearDocumentVariables,
-  createDocumentVariablesState,
-  saveDocumentVariables,
-} from '@/lib/templates/documentVariables';
 
 interface Template {
   id: string;
@@ -16,7 +10,6 @@ interface Template {
   builtIn: boolean;
   advanced?: boolean;
   filePath?: string;
-  yamlPath?: string;
   data?: ArrayBuffer;
 }
 
@@ -100,14 +93,6 @@ export default function TemplatePanel() {
       }
 
       await rhwpActions.load(buffer);
-      if (template.builtIn && template.yamlPath) {
-        const res = await fetch(template.yamlPath);
-        if (!res.ok) throw new Error('YAML 파일을 불러올 수 없습니다.');
-        const definition = parseAdvancedTemplateYaml(await res.text());
-        saveDocumentVariables(createDocumentVariablesState(template.id, template.name, definition));
-      } else {
-        clearDocumentVariables();
-      }
       console.log('[template] 로드 완료:', template.name);
     } catch (err) {
       console.error('[template] 로드 에러:', err);
