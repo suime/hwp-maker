@@ -9,6 +9,7 @@ import { rhwpActions } from '@/lib/rhwp/loader';
 import { parseRhwpAiResponse, stripThinkTags, type RhwpAiAction } from '@/lib/ai/rhwpCommands';
 import type { Attachment } from '@/types/attachment';
 import { processFile } from '@/lib/attachment/reader';
+import { loadDocumentVariables, subscribeDocumentVariables } from '@/lib/templates/documentVariables';
 import {
   createSession,
   deleteSession,
@@ -334,6 +335,9 @@ export default function ChatPanel() {
 
   const [input, setInput] = useState('');
   const [currentConfig, setCurrentConfig] = useState(() => loadAiConfig());
+  const [documentVariableSystemPrompt, setDocumentVariableSystemPrompt] = useState(
+    () => loadDocumentVariables()?.definition.systemPrompt || ''
+  );
   const currentSessionIdRef = useRef<string | null>(null);
   const sessionAttachmentsRef = useRef<Attachment[]>([]);
   const inputHistoryRef = useRef<string[]>([]);
@@ -359,6 +363,19 @@ export default function ChatPanel() {
     window.addEventListener('ai-config-changed', handleConfigChange);
     return () => window.removeEventListener('ai-config-changed', handleConfigChange);
   }, []);
+
+  useEffect(() => {
+    const refreshDocumentVariablePrompt = () => {
+      setDocumentVariableSystemPrompt(loadDocumentVariables()?.definition.systemPrompt || '');
+    };
+
+    return subscribeDocumentVariables(refreshDocumentVariablePrompt);
+  }, []);
+
+  const effectiveSystemPrompt = useMemo(
+    () => [activeProfile.systemPrompt, documentVariableSystemPrompt].filter(Boolean).join('\n\n'),
+    [activeProfile.systemPrompt, documentVariableSystemPrompt]
+  );
 
   const executeRhwpAction = useCallback(async (action: RhwpAiAction) => {
     switch (action.type) {
@@ -387,7 +404,7 @@ export default function ChatPanel() {
     messages: [WELCOME],
     body: {
       config: currentConfig,
-      systemPrompt: activeProfile.systemPrompt,
+      systemPrompt: effectiveSystemPrompt,
       attachments: attachments,
     },
     onFinish: (message) => {
@@ -721,14 +738,14 @@ export default function ChatPanel() {
       {
         body: {
           config: currentConfig,
-          systemPrompt: activeProfile.systemPrompt,
+          systemPrompt: effectiveSystemPrompt,
           attachments: attachments,
         },
       }
     );
     setInput('');
     setAttachments([]);
-  }, [activeProfile.systemPrompt, attachments, canSend, currentConfig, handleSendMessage, input, rememberInput]);
+  }, [attachments, canSend, currentConfig, effectiveSystemPrompt, handleSendMessage, input, rememberInput]);
 
   return (
     <div

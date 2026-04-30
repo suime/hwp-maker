@@ -19,19 +19,56 @@
 한글 파일 본문에는 `{{변수명}}` 형태의 변수를 넣고, YAML에서 입력 방식을 정의합니다. 템플릿 파일은 템플릿 탭에서 선택하고, 변수 값 입력과 적용은 문서 변수 탭에서 처리합니다.
 
 ```yaml
+document:
+  author: 안전관리팀
+  description: |
+    안전관리 점검 결과를 정리하는 공공기관 보고서 양식입니다.
+    점검 대상, 작성 부서, 요약 문장을 문서 변수로 관리합니다.
+  systemPrompt: |
+    이 문서는 공공기관 보고서입니다.
+    모든 자동 생성 문장은 간결한 개조식으로 작성하세요.
+
 variables:
   title:
     label: 문서 제목
     type: text
+    description: 문서 상단 제목으로 치환되는 값입니다.
     default: 안전관리 점검 보고
 
   department:
     label: 작성 부서
     type: select
+    description: 보고서를 작성하는 담당 부서를 선택합니다.
     options:
       - 안전관리팀
       - 시설관리팀
       - 홍보팀
+
+  workType:
+    label: 업무 유형
+    type: select
+    options:
+      - 도로
+      - 교량
+
+  inspectionItem:
+    label: 점검 항목
+    type: select
+    description: |
+      업무 유형에 따라 선택지가 달라집니다.
+      문서 본문의 {{inspectionItem}} 위치에 입력됩니다.
+    options:
+      - 일반 점검
+    optionsWhen:
+      workType:
+        도로:
+          - 포장 파손
+          - 차선 도색
+          - 배수 시설
+        교량:
+          - 신축 이음
+          - 교좌 장치
+          - 난간
 
   writtenDate:
     label: 작성일
@@ -45,7 +82,7 @@ variables:
 
   summary:
     label: 3줄 요약
-    type: llm
+    type: ai
     prompt: |
       문서 제목은 "{{title}}"입니다.
       작성 부서는 "{{department}}"입니다.
@@ -58,4 +95,13 @@ variables:
 - `select`: YAML에 정의된 선택지 중 하나 선택
 - `date`: 현재 날짜를 지정 포맷으로 생성
 - `script`: 제한된 스크립트 값 생성 (`today`, `currentDate`, `currentYear`, `currentMonth`, `currentDay`, `date("yyyy-MM-dd")`)
-- `llm`: 사용자가 선택/입력한 다른 변수 값을 `{{변수명}}`으로 참조해 지시문을 만들고, LLM이 값을 생성
+- `ai`: 사용자가 선택/입력한 다른 변수 값을 `{{변수명}}`으로 참조해 지시문을 만들고, AI가 값을 생성
+
+추가 기능:
+
+- `document`: 문서 기본 정보 섹션입니다. `author`, `description`, `systemPrompt`를 모아 적을 수 있으며 문서 변수 탭에서 수정할 수 있습니다. 기존처럼 최상위에 `author`, `description`, `systemPrompt`를 직접 적는 형식도 지원합니다.
+- `author`: 문서 작성자입니다. AI 변수 프롬프트에서 `{{author}}` 또는 `{{documentAuthor}}`로 참조할 수 있고, 문서에 같은 플레이스홀더가 있으면 치환됩니다.
+- `description`: 문서 기본 설명입니다. AI 변수 프롬프트에서 `{{documentDescription}}`로 참조할 수 있고, 문서에 같은 플레이스홀더가 있으면 치환됩니다.
+- `systemPrompt`: 문서 변수 세트에 연결되는 시스템 프롬프트입니다. `ai` 변수 생성과 채팅 요청에 함께 전달됩니다.
+- `variables.<변수명>.description`: 각 변수의 설명 문구입니다. 문서 변수 사이드바에서 해당 입력 항목 아래에 표시되며, `|` 블록 문법으로 여러 줄 설명도 작성할 수 있습니다.
+- `optionsWhen`: 다른 변수의 값에 따라 `select` 후보를 바꿉니다. 위 예시에서는 `workType` 값이 `도로`인지 `교량`인지에 따라 `inspectionItem`의 선택지가 바뀝니다.

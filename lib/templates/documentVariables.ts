@@ -1,6 +1,8 @@
 import {
   evaluateTemplateVariable,
+  normalizeTemplateVariableValues,
   type AdvancedTemplateDefinition,
+  type AdvancedTemplateVariable,
 } from '@/lib/templates/advanced';
 
 export interface ActiveDocumentVariables {
@@ -8,6 +10,7 @@ export interface ActiveDocumentVariables {
   sourceName: string;
   definition: AdvancedTemplateDefinition;
   values: Record<string, string>;
+  aiPromptValuesVersion?: 1;
 }
 
 const STORAGE_KEY = 'hwp-maker:document-variables';
@@ -23,13 +26,43 @@ export function createDocumentVariablesState(
   sourceName: string,
   definition: AdvancedTemplateDefinition
 ): ActiveDocumentVariables {
+  const values = Object.fromEntries(
+    definition.variables.map((variable) => [variable.name, evaluateTemplateVariable(variable)])
+  );
+
   return {
     sourceId,
     sourceName,
     definition,
-    values: Object.fromEntries(
-      definition.variables.map((variable) => [variable.name, evaluateTemplateVariable(variable)])
-    ),
+    values: normalizeTemplateVariableValues(definition, values),
+    aiPromptValuesVersion: 1,
+  };
+}
+
+function normalizeDocumentVariablesState(state: ActiveDocumentVariables): ActiveDocumentVariables {
+  const values = { ...state.values };
+  const definition = {
+    ...state.definition,
+    variables: state.definition.variables.map((variable) => ({
+      ...variable,
+      type: variable.type === ('llm' as AdvancedTemplateVariable['type']) ? 'ai' : variable.type,
+    })),
+  };
+  const oldState = state as ActiveDocumentVariables & { llmPromptValuesVersion?: 1 };
+
+  if (state.aiPromptValuesVersion !== 1 && oldState.llmPromptValuesVersion !== 1) {
+    for (const variable of definition.variables) {
+      if (variable.type === 'ai') {
+        values[variable.name] = evaluateTemplateVariable(variable);
+      }
+    }
+  }
+
+  return {
+    ...state,
+    definition,
+    values: normalizeTemplateVariableValues(definition, values),
+    aiPromptValuesVersion: 1,
   };
 }
 
@@ -38,7 +71,7 @@ export function loadDocumentVariables(): ActiveDocumentVariables | null {
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) as ActiveDocumentVariables : null;
+    return raw ? normalizeDocumentVariablesState(JSON.parse(raw) as ActiveDocumentVariables) : null;
   } catch (error) {
     console.error('문서 변수 로드 실패:', error);
     return null;
@@ -47,7 +80,13 @@ export function loadDocumentVariables(): ActiveDocumentVariables | null {
 
 export function saveDocumentVariables(state: ActiveDocumentVariables): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const normalized = normalizeDocumentVariablesState(state);
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      ...normalized,
+    })
+  );
   notifyDocumentVariablesChanged();
 }
 

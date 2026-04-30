@@ -41,7 +41,7 @@ AI 도움을 받아 한글 HWP/HWPX 문서를 만들고 편집하는 self-hostab
 - 내장 HWP/HWPX 템플릿 목록 로드
 - 사용자 HWP/HWPX 템플릿 업로드
 - 문서 변수 입력 및 치환
-- `llm` 문서 변수 자동 생성
+- `ai` 문서 변수 자동 생성
 - Latte/Mocha 테마 전환
 
 ## 프로젝트 구조
@@ -55,7 +55,7 @@ hwp-maker/
 │  └─ api/
 │     ├─ chat/route.ts          # AI chat streaming proxy
 │     ├─ templates/route.ts     # public/templates 목록 조회
-│     └─ template-llm/route.ts  # 문서 변수 llm 값 생성
+│     └─ template-ai/route.ts   # 문서 변수 ai 값 생성
 ├─ components/
 │  ├─ chat/                     # 채팅, 첨부파일, 세션 UI
 │  ├─ editor/                   # 에디터 레이아웃, 미리보기, 템플릿, 문서 변수, 프로필, 설정
@@ -152,7 +152,9 @@ AI가 문서를 수정하려면 `SKILLS.md`에 정의된 `hwp-maker-actions` 또
 - `select`: 선택지 중 하나 선택
 - `date`: 현재 날짜 기반 값 생성
 - `script`: 제한된 내장 스크립트 값 생성
-- `llm`: 현재 변수 값을 바탕으로 AI가 텍스트 생성
+- `ai`: 현재 변수 값을 바탕으로 AI가 텍스트 생성
+
+문서 변수 YAML은 문서 기본 정보(`document.author`, `document.description`, `document.systemPrompt`), 변수별 설명(`description`), 조건부 선택지(`optionsWhen`)도 지원합니다. 문서 기본 정보와 `systemPrompt`는 문서 변수 탭에서 수정할 수 있고, `ai` 변수 생성 및 채팅 요청에 함께 전달됩니다.
 
 자세한 예시는 `public/templates/README.md`를 참고하세요.
 
@@ -161,7 +163,7 @@ AI가 문서를 수정하려면 `SKILLS.md`에 정의된 `hwp-maker-actions` 또
 - Next.js 16을 사용합니다. Next.js 관련 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 관련 문서를 확인해야 합니다.
 - Tailwind CSS는 v4 문법입니다. v3 설정 파일 중심의 전제를 사용하지 않습니다.
 - HWP/HWPX 문서 처리는 가능한 한 브라우저/rhwp 쪽에서 수행합니다.
-- API route는 AI proxy, 템플릿 목록 조회, 템플릿 LLM 변수 생성처럼 서버가 필요한 작업에 한정합니다.
+- API route는 AI proxy, 템플릿 목록 조회, 템플릿 AI 변수 생성처럼 서버가 필요한 작업에 한정합니다.
 - README는 현재 구현 상태를 설명하며, 제품 범위와 미결정 사항은 `TODO.md`에 정리합니다.
 
 ## 라이선스

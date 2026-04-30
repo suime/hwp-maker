@@ -98,6 +98,7 @@ export default function EditorLayout() {
             setActiveTab(tab);
           }}
           sidebarOpen={sidebarOpen}
+          sidebarPosition={sidebarPosition}
           onToggle={() => setSidebarOpen((v) => !v)}
         />
 

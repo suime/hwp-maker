@@ -23,6 +23,10 @@ interface Template {
 // 기존 하드코딩 목록 제거 (API에서 로드)
 const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
 
+function hasDocumentContent(text?: string) {
+  return Boolean(text?.replace(/\s+/g, '').length);
+}
+
 function loadMyTemplates() {
   if (typeof window === 'undefined') return [];
   const raw = localStorage.getItem(MY_TEMPLATES_KEY);
@@ -69,10 +73,19 @@ export default function TemplatePanel() {
       alert('에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.');
       return;
     }
-    setLoadingId(template.id);
-    setActiveId(template.id);
 
     try {
+      const currentDocument = await rhwpActions.readDocument();
+      if (hasDocumentContent(currentDocument.text)) {
+        const confirmed = window.confirm(
+          '현재 문서 내용이 있습니다.\n\n템플릿을 불러오면 저장하지 않은 내용이 사라질 수 있습니다. 계속할까요?'
+        );
+        if (!confirmed) return;
+      }
+
+      setLoadingId(template.id);
+      setActiveId(template.id);
+
       let buffer: ArrayBuffer;
       if (template.builtIn && template.filePath) {
         const res = await fetch(template.filePath);

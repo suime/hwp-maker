@@ -1,29 +1,56 @@
+document:
+  author: 박대현
+  description: |
+    한글 1P 보고서 양식입니다.
+    작성 부서, 작성일, 작성자 정보를 바탕으로 제목과 배경 문구를 생성합니다.
+  systemPrompt: |
+    당신은 한글 1P 보고서 작성 전문가입니다.
+    작성 부서, 작성일, 작성자 정보를 바탕으로 보고서 제목을 생성하는 역할을 합니다.
+
 variables:
   department:
     label: 작성 부서
     type: select
+    description: 문서에 표시할 작성 부서를 선택합니다.
     default: AI데이터처
     options:
       - AI데이터처
       - AX혁신처
       - 디지털관리처
-      - 안전관리팀
-      - 시설관리팀
-      - 홍보팀
+  buso:
+    label: 작성 부서명
+    type: select
+    description: 보고서 작성 부서명으로 치환됩니다.
+    optionsWhen:
+      department:
+        AI데이터처:
+          - AI모델개발부
+          - 융합부
+          - 품질부
+        AX혁신처:
+          - AX계획부
+          - 기계부
+          - 행정부
+        디지털관리처:
+          - 인프라운영부
+          - 정보보안센터
 
   date:
     label: 작성일
     type: date
+    description: 현재 날짜를 한글 문서용 날짜 형식으로 자동 입력합니다.
     format: yyyy년 MM월 dd일 (aaa)
 
   name:
     label: 작성자
     type: text
+    description: 보고서 작성자 이름으로 치환됩니다.
     default: 박대현
 
   title:
     label: 제목
-    type: llm
+    type: ai
+    description: 작성 부서, 작성일, 작성자를 바탕으로 AI가 생성하는 보고서 제목입니다.
     prompt: |
       아래 정보를 바탕으로 한글 1P 보고서에 어울리는 간결한 제목을 작성하세요.
       작성 부서: {{department}}
@@ -34,3 +61,15 @@ variables:
       - 한 줄로만 작성
       - 25자 이내
       - 문서 제목만 출력
+  background1:
+    label: 배경
+    type: ai
+    description: 보고서의 배경 정보를 입력합니다.
+    prompt: |
+      아래 정보를 바탕으로 한글 1P 보고서에 어울리는 배경 내용을 작성하세요.
+      작성 부서: {{department}}
+      작성일: {{date}}
+      작성자: {{name}}
+      제목: {{title}}
+      조건:
+      - 외부의 요인을 MECE하게 한글로 1줄 작성

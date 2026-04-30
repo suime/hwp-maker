@@ -6,6 +6,7 @@ interface Props {
   activeTab: SideTab;
   onTabChange: (tab: SideTab) => void;
   sidebarOpen: boolean;
+  sidebarPosition: 'left' | 'right';
   onToggle: () => void;
 }
 
@@ -68,10 +69,12 @@ const TABS: { id: SideTab; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-export default function IconRail({ activeTab, onTabChange, sidebarOpen, onToggle }: Props) {
+export default function IconRail({ activeTab, onTabChange, sidebarOpen, sidebarPosition, onToggle }: Props) {
   return (
     <nav
-      className="w-12 flex-shrink-0 flex flex-col items-center py-2 gap-0.5 border-r"
+      className={`w-12 flex-shrink-0 flex flex-col items-center py-2 gap-0.5 ${
+        sidebarPosition === 'right' ? 'border-l' : 'border-r'
+      }`}
       style={{
         background: 'var(--color-bg-panel)',
         borderColor: 'var(--color-bg-border)',
