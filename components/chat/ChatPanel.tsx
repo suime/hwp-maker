@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from '@ai-sdk/react';
 import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
 import { loadAiConfig } from '@/lib/ai/config';
-import { parseAiResponse } from '@/lib/ai/service';
 import { rhwpActions } from '@/lib/rhwp/loader';
+import { parseRhwpAiResponse, replaceMessageText, type RhwpAiAction } from '@/lib/ai/rhwpCommands';
 import type { Attachment } from '@/types/attachment';
 import { processFile } from '@/lib/attachment/reader';
 import {
@@ -52,8 +52,8 @@ function messageContentToText(message: unknown): string {
     text?: string;
   };
 
-  if (typeof maybeMessage.content === 'string') return maybeMessage.content;
-  if (typeof maybeMessage.text === 'string') return maybeMessage.text;
+  if (typeof maybeMessage.content === 'string') return collapseRepeatedText(maybeMessage.content);
+  if (typeof maybeMessage.text === 'string') return collapseRepeatedText(maybeMessage.text);
 
   const parts = Array.isArray(maybeMessage.parts)
     ? maybeMessage.parts
@@ -62,7 +62,7 @@ function messageContentToText(message: unknown): string {
       : null;
 
   if (parts) {
-    return parts
+    return collapseRepeatedText(parts
       .map((part) => {
         if (typeof part === 'string') return part;
         if (part && typeof part === 'object') {
@@ -72,19 +72,64 @@ function messageContentToText(message: unknown): string {
         return '';
       })
       .filter(Boolean)
-      .join('\n');
+      .join('\n'));
   }
 
   return JSON.stringify(message);
 }
 
+function collapseRepeatedText(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  const half = Math.floor(trimmed.length / 2);
+  const left = trimmed.slice(0, half).trim();
+  const right = trimmed.slice(half).trim();
+  if (left && left === right) return left;
+
+  const lines = trimmed.split(/\n{2,}/);
+  if (lines.length % 2 === 0) {
+    const midpoint = lines.length / 2;
+    const first = lines.slice(0, midpoint).join('\n\n').trim();
+    const second = lines.slice(midpoint).join('\n\n').trim();
+    if (first && first === second) return first;
+  }
+
+  return text;
+}
+
+function getMessageText(message: UIMessage) {
+  return collapseRepeatedText(messageContentToText(message));
+}
+
+function dedupeMessages(messages: UIMessage[]) {
+  const seenIds = new Set<string>();
+  const deduped: UIMessage[] = [];
+
+  for (const message of messages) {
+    const id = String(message.id || '');
+    if (id && seenIds.has(id)) continue;
+    if (id) seenIds.add(id);
+
+    const text = getMessageText(message).trim();
+    const previous = deduped[deduped.length - 1];
+    if (previous && previous.role === message.role && getMessageText(previous).trim() === text) {
+      continue;
+    }
+
+    deduped.push(message);
+  }
+
+  return deduped;
+}
+
 function toSessionMessages(messages: UIMessage[]): SessionMessage[] {
-  return messages
+  return dedupeMessages(messages)
     .filter((message) => !String(message.id || '').startsWith(WELCOME_ID))
     .map((message) => ({
       id: message.id || crypto.randomUUID(),
       role: message.role as 'user' | 'assistant' | 'system',
-      content: messageContentToText(message),
+      content: getMessageText(message),
     }))
     .filter((message) => message.content.trim().length > 0);
 }
@@ -99,6 +144,12 @@ function extractAssistantText(messageOrEvent: unknown): string {
   );
 }
 
+function extractMessageId(messageOrEvent: unknown): string | null {
+  if (!messageOrEvent || typeof messageOrEvent !== 'object') return null;
+  const event = messageOrEvent as { id?: string; message?: { id?: string } };
+  return event.id ?? event.message?.id ?? null;
+}
+
 export default function ChatPanel() {
   const [activeProfile, setActiveProfileState] = useState<AiProfile>(() => getActiveProfile());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -106,12 +157,16 @@ export default function ChatPanel() {
   const [processingFiles, setProcessingFiles] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [isPreparingMessage, setIsPreparingMessage] = useState(false);
 
   const [input, setInput] = useState('');
   const [currentConfig, setCurrentConfig] = useState(() => loadAiConfig());
   const currentSessionIdRef = useRef<string | null>(null);
   const sessionAttachmentsRef = useRef<Attachment[]>([]);
   const didInitSessionRef = useRef(false);
+  const requestSerialRef = useRef(0);
+  const activeRequestSerialRef = useRef(0);
+  const executedActionSignaturesRef = useRef<Set<string>>(new Set());
 
   const setCurrentSession = useCallback((sessionId: string | null) => {
     currentSessionIdRef.current = sessionId;
@@ -125,6 +180,25 @@ export default function ChatPanel() {
     return () => window.removeEventListener('ai-config-changed', handleConfigChange);
   }, []);
 
+  const executeRhwpAction = useCallback(async (action: RhwpAiAction) => {
+    switch (action.type) {
+      case 'insert_text':
+        return await rhwpActions.insertText(action.text, action.position);
+      case 'replace_all':
+        return await rhwpActions.replaceAll(action.query, action.text, action.caseSensitive);
+      case 'fill_field':
+        return await rhwpActions.fillField(action.name, action.value);
+      case 'fill_fields':
+        return await rhwpActions.fillFields(action.values);
+    }
+  }, []);
+
+  const executeRhwpActions = useCallback(async (actions: RhwpAiAction[]) => {
+    for (const action of actions) {
+      await executeRhwpAction(action);
+    }
+  }, [executeRhwpAction]);
+
   const { messages, sendMessage, status, setMessages } = useChat({
     // @ts-expect-error - 기존 /api/chat 라우트는 현재 AI SDK 호환 옵션으로 호출합니다.
     api: '/api/chat',
@@ -135,11 +209,45 @@ export default function ChatPanel() {
       attachments: attachments,
     },
     onFinish: (message) => {
-      // 에디터에 반영
-      const cleanText = parseAiResponse(extractAssistantText(message));
-      void rhwpActions.insertText(cleanText).catch((error) => {
-        console.warn('AI 응답을 에디터에 반영하지 못했습니다:', error);
-      });
+      const rawText = extractAssistantText(message);
+      const parsed = parseRhwpAiResponse(rawText);
+      const messageId = extractMessageId(message);
+
+      if (parsed.visibleText !== rawText && parsed.visibleText) {
+        setMessages((prev) => {
+          let replaced = false;
+          const next = prev.map((item) => {
+            if (messageId && item.id === messageId) {
+              replaced = true;
+              return replaceMessageText(item, parsed.visibleText) as UIMessage;
+            }
+            return item;
+          });
+
+          if (replaced) return next;
+
+          for (let index = next.length - 1; index >= 0; index--) {
+            if (next[index].role === 'assistant') {
+              next[index] = replaceMessageText(next[index], parsed.visibleText) as UIMessage;
+              break;
+            }
+          }
+          return next;
+        });
+      }
+
+      void (async () => {
+        try {
+          if (parsed.actions.length > 0) {
+            const signature = `${activeRequestSerialRef.current}:${JSON.stringify(parsed.actions)}`;
+            if (executedActionSignaturesRef.current.has(signature)) return;
+            executedActionSignaturesRef.current.add(signature);
+            await executeRhwpActions(parsed.actions);
+          }
+        } catch (error) {
+          console.warn('AI 응답을 에디터에 반영하지 못했습니다:', error);
+        }
+      })();
     },
     onError: (error) => {
       console.error('AI 응답 에러:', error);
@@ -167,7 +275,8 @@ export default function ChatPanel() {
     }
   }, [setCurrentSession, setMessages]);
 
-  const isLoading = status === 'submitted' || status === 'streaming';
+  const isLoading = status === 'submitted' || status === 'streaming' || isPreparingMessage;
+  const displayedMessages = useMemo(() => dedupeMessages(messages), [messages]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
@@ -197,7 +306,7 @@ export default function ChatPanel() {
   }, [messages, currentSessionId]);
 
   /** 사용자 메시지 전송 시 세션 저장 */
-  const handleSendMessage = useCallback((message: { text: string }, opts?: Parameters<typeof sendMessage>[1]) => {
+  const handleSendMessage = useCallback(async (message: { text: string }, opts?: Parameters<typeof sendMessage>[1]) => {
     let sessionId = currentSessionIdRef.current;
     if (!sessionId) {
       const newSession = createSession();
@@ -206,7 +315,27 @@ export default function ChatPanel() {
     }
 
     sessionAttachmentsRef.current = attachments;
-    sendMessage(message, opts);
+    activeRequestSerialRef.current = ++requestSerialRef.current;
+    setIsPreparingMessage(true);
+
+    try {
+      let documentContext = null;
+      try {
+        documentContext = await rhwpActions.readDocument();
+      } catch (error) {
+        console.warn('현재 rhwp 문서 컨텍스트를 읽지 못했습니다:', error);
+      }
+
+      sendMessage(message, {
+        ...opts,
+        body: {
+          ...opts?.body,
+          documentContext,
+        },
+      });
+    } finally {
+      setIsPreparingMessage(false);
+    }
   }, [attachments, sendMessage, setCurrentSession]);
 
   const handleProfileChange = (id: string) => {
@@ -359,7 +488,7 @@ export default function ChatPanel() {
 
       {/* 메시지 목록 */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-        {messages.map((msg) => (
+        {displayedMessages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed"
@@ -377,7 +506,7 @@ export default function ChatPanel() {
                     }
               }
             >
-              <span>{messageContentToText(msg)}</span>
+              <span>{getMessageText(msg)}</span>
             </div>
           </div>
         ))}
@@ -422,7 +551,7 @@ export default function ChatPanel() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!canSend) return;
-          handleSendMessage(
+          void handleSendMessage(
             { text: input.trim() || '첨부 파일을 참고해 주세요.' },
             {
               body: {

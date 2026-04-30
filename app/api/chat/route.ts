@@ -3,6 +3,8 @@ import { createOpenAI } from '@ai-sdk/openai';
 // installed with @ai-sdk/react so the route speaks the same stream protocol as useChat.
 import { convertToModelMessages, streamText } from '../../../node_modules/@ai-sdk/react/node_modules/ai/dist/index.mjs';
 import type { Attachment } from '@/types/attachment';
+import type { RhwpDocumentContext } from '@/lib/rhwp/loader';
+import { buildRhwpDocumentPrompt } from '@/lib/ai/rhwpCommands';
 
 export const maxDuration = 30;
 
@@ -17,6 +19,7 @@ type ChatRequestBody = {
   config?: AiConfig;
   systemPrompt?: string;
   attachments?: Attachment[];
+  documentContext?: RhwpDocumentContext | null;
 };
 
 type TextPart = { type: 'text'; text: string };
@@ -206,9 +209,12 @@ export async function POST(req: Request) {
     const model = body.config?.model || 'gpt-4o';
 
     const openai = createOpenAI({ baseURL, apiKey });
+    const system = [body.systemPrompt, buildRhwpDocumentPrompt(body.documentContext)]
+      .filter(Boolean)
+      .join('\n\n');
     const result = streamText({
       model: openai(model),
-      system: body.systemPrompt,
+      system,
       messages: await convertToModelMessages(messages),
     });
 
