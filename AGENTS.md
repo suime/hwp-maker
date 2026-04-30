@@ -95,6 +95,7 @@ Run lint/build after meaningful code changes when feasible.
 - WASM, fonts, and sample files are under `public/rhwp-studio/`.
 - Prefer adding high-level document operations to `lib/rhwp/loader.ts` before wiring them into UI or AI flows.
 - If changing editor API usage, verify against the installed package behavior instead of guessing method names.
+- LLM-facing rhwp document editing skills and `hwp-actions` are defined in `SKILLS.md`; keep that file in sync with `lib/ai/rhwpCommands.ts`.
 
 ## AI And Attachments
 

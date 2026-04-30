@@ -17,6 +17,7 @@ export interface SessionMessage {
 export interface ChatSession {
   id: string;
   title: string;
+  manualTitle?: boolean;
   messages: SessionMessage[];
   attachments: Attachment[];
   createdAt: string;
@@ -69,6 +70,13 @@ export function setActiveSessionId(id: string | null): void {
   }
 }
 
+/** 모든 채팅 세션 삭제 */
+export function clearAllSessions(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(SESSIONS_KEY);
+  localStorage.removeItem(ACTIVE_SESSION_KEY);
+}
+
 /** 새 세션 생성 */
 export function createSession(): ChatSession {
   const now = new Date().toISOString();
@@ -106,7 +114,20 @@ export function updateSessionTitle(id: string, title: string): void {
   const sessions = loadAllSessions();
   const session = sessions.find(s => s.id === id);
   if (session) {
+    if (session.manualTitle) return;
     session.title = title;
+    session.updatedAt = new Date().toISOString();
+    saveAllSessions(sessions);
+  }
+}
+
+/** 사용자가 지정한 세션 제목 저장 */
+export function renameSession(id: string, title: string): void {
+  const sessions = loadAllSessions();
+  const session = sessions.find(s => s.id === id);
+  if (session) {
+    session.title = title;
+    session.manualTitle = true;
     session.updatedAt = new Date().toISOString();
     saveAllSessions(sessions);
   }

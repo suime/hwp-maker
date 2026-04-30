@@ -1,0 +1,58 @@
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from '../../../node_modules/@ai-sdk/react/node_modules/ai/dist/index.mjs';
+
+export const maxDuration = 30;
+
+type AiConfig = {
+  provider?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+};
+
+type TemplateLlmRequestBody = {
+  config?: AiConfig;
+  prompt?: string;
+  values?: Record<string, string>;
+  variableName?: string;
+};
+
+export async function POST(req: Request) {
+  try {
+    const body = (await req.json()) as TemplateLlmRequestBody;
+    const baseURL =
+      body.config?.baseUrl ||
+      process.env.OPENAI_API_BASE_URL ||
+      'https://api.openai.com/v1';
+    const apiKey = body.config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
+    const model = body.config?.model || 'gpt-4o';
+    const openai = createOpenAI({ baseURL, apiKey });
+
+    const result = await generateText({
+      model: openai(model),
+      system: [
+        '고급 HWP 템플릿의 변수 값을 생성합니다.',
+        '출력은 문서에 바로 치환될 순수 텍스트만 작성하세요.',
+        '마크다운 코드블록, JSON, 설명문, 따옴표 포장은 쓰지 마세요.',
+      ].join('\n'),
+      prompt: [
+        body.variableName ? `변수명: ${body.variableName}` : '',
+        '[현재까지 확정된 변수]',
+        JSON.stringify(body.values || {}, null, 2),
+        '',
+        '[생성 지시문]',
+        body.prompt || '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    });
+
+    return Response.json({ text: result.text.trim() });
+  } catch (error) {
+    console.error('Template LLM API Error:', error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Unknown template LLM error' },
+      { status: 500 }
+    );
+  }
+}

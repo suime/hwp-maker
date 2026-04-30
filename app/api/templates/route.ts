@@ -18,13 +18,22 @@ export async function GET() {
     
     const templates = files
       .filter(file => file.endsWith('.hwp') || file.endsWith('.hwpx'))
-      .map(file => ({
-        id: `builtin-${file}`,
-        name: file.replace(/\.(hwp|hwpx)$/i, ''),
-        description: `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
-        builtIn: true,
-        filePath: `/templates/${file}`,
-      }));
+      .map(file => {
+        const name = file.replace(/\.(hwp|hwpx)$/i, '');
+        const yamlFile = files.find(candidate => candidate === `${name}.yaml` || candidate === `${name}.yml`);
+
+        return {
+          id: `builtin-${file}`,
+          name,
+          description: yamlFile
+            ? `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 고급 양식 파일`
+            : `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
+          builtIn: true,
+          filePath: `/templates/${file}`,
+          advanced: Boolean(yamlFile),
+          yamlPath: yamlFile ? `/templates/${yamlFile}` : undefined,
+        };
+      });
 
     return NextResponse.json(templates);
   } catch (error) {

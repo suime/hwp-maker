@@ -122,6 +122,13 @@ export function deleteCustomProfile(id: string): void {
   }
 }
 
+/** 사용자 프로필과 활성 프로필 선택을 초기화 */
+export function resetProfiles(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(CUSTOM_PROFILES_KEY);
+  localStorage.removeItem(ACTIVE_PROFILE_KEY);
+}
+
 function getCustomProfiles(): AiProfile[] {
   const raw = localStorage.getItem(CUSTOM_PROFILES_KEY);
   return raw ? JSON.parse(raw) : [];
@@ -161,13 +168,16 @@ export function profileToYaml(profile: AiProfile): string {
 export function yamlToProfile(yaml: string): Partial<AiProfile> {
   // 주의: 실제 앱에서는 js-yaml 같은 검증된 라이브러리 사용 권장
   // 여기서는 구조가 단순하므로 줄 단위 파싱 수행
-  const result: any = { defaultStyle: {}, configOverride: {} };
+  const result: Partial<AiProfile> & {
+    configOverride: Record<string, string>;
+    defaultStyle: AiProfile['defaultStyle'];
+  } = { defaultStyle: {}, configOverride: {} };
   const lines = yaml.split('\n');
   let currentKey = '';
   let inSystemPrompt = false;
-  let systemPromptLines: string[] = [];
+  const systemPromptLines: string[] = [];
 
-  for (let line of lines) {
+  for (const line of lines) {
     const indent = line.search(/\S/);
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;

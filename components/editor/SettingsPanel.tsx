@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import { requestCompletion } from '@/lib/ai/client';
 import type { AiConfig } from '@/lib/ai/client';
+import { clearAllSessions } from '@/lib/chat/sessions';
+import { resetProfiles } from '@/lib/ai/profiles';
+import { clearSession } from '@/lib/session';
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
+type DataAction = 'chat' | 'templates' | 'profiles' | 'app';
+
+const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
+const APP_STORAGE_PREFIX = 'hwp-maker:';
 
 interface SettingsPanelProps {
   sidebarPosition?: 'left' | 'right';
@@ -16,12 +23,11 @@ export default function SettingsPanel({
   sidebarPosition = 'left',
   onChangeSidebarPosition,
 }: SettingsPanelProps) {
-  const [config, setConfig] = useState<AiConfig>({ provider: 'ollama', baseUrl: '', apiKey: '', model: '' });
+  const [config, setConfig] = useState<AiConfig>(() => loadAiConfig());
   const [testStatus, setTestStatus] = useState<TestStatus>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => { setConfig(loadAiConfig()); }, []);
+  const [dataMessage, setDataMessage] = useState('');
 
   function handleSave() {
     saveAiConfig(config);
@@ -46,6 +52,71 @@ export default function SettingsPanel({
     }
   }
 
+  function showDataMessage(message: string) {
+    setDataMessage(message);
+    window.setTimeout(() => setDataMessage(''), 2400);
+  }
+
+  function resetTemplates() {
+    localStorage.removeItem(MY_TEMPLATES_KEY);
+  }
+
+  function resetAppStorage() {
+    const localKeys = Object.keys(localStorage).filter((key) => key.startsWith(APP_STORAGE_PREFIX));
+    const sessionKeys = Object.keys(sessionStorage).filter((key) => key.startsWith(APP_STORAGE_PREFIX));
+
+    localKeys.forEach((key) => localStorage.removeItem(key));
+    sessionKeys.forEach((key) => sessionStorage.removeItem(key));
+  }
+
+  function handleDataAction(action: DataAction) {
+    const messages: Record<DataAction, { confirm: string; done: string }> = {
+      chat: {
+        confirm: '모든 대화 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.',
+        done: '대화 기록을 모두 삭제했습니다.',
+      },
+      templates: {
+        confirm: '사용자가 추가한 템플릿을 초기화할까요?',
+        done: '템플릿을 초기화했습니다.',
+      },
+      profiles: {
+        confirm: '사용자 프로필과 현재 프로필 선택을 초기화할까요?',
+        done: '프로필을 초기화했습니다.',
+      },
+      app: {
+        confirm: '앱의 모든 로컬 데이터를 초기화할까요? 설정, 대화, 템플릿, 프로필, 편집 세션이 모두 삭제됩니다.',
+        done: '앱 데이터를 모두 초기화했습니다. 화면을 새로고침합니다.',
+      },
+    };
+
+    if (!window.confirm(messages[action].confirm)) return;
+
+    if (action === 'chat') {
+      clearAllSessions();
+      sessionStorage.removeItem('hwp-maker:chat-session-choice-done');
+      showDataMessage(messages[action].done);
+      return;
+    }
+
+    if (action === 'templates') {
+      resetTemplates();
+      showDataMessage(messages[action].done);
+      return;
+    }
+
+    if (action === 'profiles') {
+      resetProfiles();
+      window.dispatchEvent(new Event('profiles-reset'));
+      showDataMessage(messages[action].done);
+      return;
+    }
+
+    clearSession();
+    resetAppStorage();
+    showDataMessage(messages[action].done);
+    window.setTimeout(() => window.location.reload(), 700);
+  }
+
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--color-bg-panel)' }}>
       {/* 헤더 */}
@@ -68,7 +139,7 @@ export default function SettingsPanel({
             <select
               value={config.provider || 'ollama'}
               onChange={(e) => {
-                const provider = e.target.value as any;
+                const provider = e.target.value as AiConfig['provider'];
                 setConfig(prev => {
                   const newConfig = { ...prev, provider };
                   if (provider === 'openai') {
@@ -206,6 +277,49 @@ export default function SettingsPanel({
             추가 편집기 설정은 추후 제공 예정입니다.
           </p>
         </section>
+
+        {/* 데이터 설정 */}
+        <section className="space-y-3">
+          <p className="section-label">데이터</p>
+          <div className="space-y-2">
+            <DataResetButton
+              id="settings-clear-chat"
+              title="대화 기록 전체 삭제"
+              description="저장된 채팅 세션과 활성 세션 선택을 삭제합니다."
+              onClick={() => handleDataAction('chat')}
+            />
+            <DataResetButton
+              id="settings-reset-templates"
+              title="템플릿 초기화"
+              description="사용자가 추가한 내 템플릿 목록을 비웁니다."
+              onClick={() => handleDataAction('templates')}
+            />
+            <DataResetButton
+              id="settings-reset-profiles"
+              title="프로필 초기화"
+              description="사용자 프로필을 삭제하고 기본 프로필 선택으로 되돌립니다."
+              onClick={() => handleDataAction('profiles')}
+            />
+            <DataResetButton
+              id="settings-reset-app"
+              title="앱 전체 초기화"
+              description="이 브라우저에 저장된 hwp-maker 데이터를 모두 삭제합니다."
+              danger
+              onClick={() => handleDataAction('app')}
+            />
+          </div>
+          {dataMessage && (
+            <p
+              className="text-xs px-2.5 py-2 rounded-lg"
+              style={{
+                background: 'color-mix(in srgb, var(--color-success) 15%, transparent)',
+                color: 'var(--color-success)',
+              }}
+            >
+              {dataMessage}
+            </p>
+          )}
+        </section>
       </div>
 
       {/* 저장 버튼 */}
@@ -220,5 +334,43 @@ export default function SettingsPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function DataResetButton({
+  id,
+  title,
+  description,
+  danger = false,
+  onClick,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      id={id}
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-lg border px-3 py-2 text-left transition-colors hover:bg-[var(--color-bg-surface)]"
+      style={{
+        borderColor: danger
+          ? 'color-mix(in srgb, var(--color-error) 35%, var(--color-bg-border))'
+          : 'var(--color-bg-border)',
+      }}
+    >
+      <span
+        className="block text-sm font-medium"
+        style={{ color: danger ? 'var(--color-error)' : 'var(--color-text-primary)' }}
+      >
+        {title}
+      </span>
+      <span className="mt-0.5 block text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {description}
+      </span>
+    </button>
   );
 }

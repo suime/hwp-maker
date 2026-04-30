@@ -75,7 +75,9 @@ export function getEditorInstance(): RhwpEditorInstance | null {
 export function subscribeEditor(listener: (instance: RhwpEditorInstance | null) => void) {
   _listeners.add(listener);
   listener(_editorInstance); // 즉시 현재 상태 전달
-  return () => _listeners.delete(listener);
+  return () => {
+    _listeners.delete(listener);
+  };
 }
 
 /**

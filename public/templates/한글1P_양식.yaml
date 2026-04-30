@@ -1,0 +1,36 @@
+variables:
+  department:
+    label: 작성 부서
+    type: select
+    default: AI데이터처
+    options:
+      - AI데이터처
+      - AX혁신처
+      - 디지털관리처
+      - 안전관리팀
+      - 시설관리팀
+      - 홍보팀
+
+  date:
+    label: 작성일
+    type: date
+    format: yyyy년 MM월 dd일 (aaa)
+
+  name:
+    label: 작성자
+    type: text
+    default: 박대현
+
+  title:
+    label: 제목
+    type: llm
+    prompt: |
+      아래 정보를 바탕으로 한글 1P 보고서에 어울리는 간결한 제목을 작성하세요.
+      작성 부서: {{department}}
+      작성일: {{date}}
+      작성자: {{name}}
+
+      조건:
+      - 한 줄로만 작성
+      - 25자 이내
+      - 문서 제목만 출력

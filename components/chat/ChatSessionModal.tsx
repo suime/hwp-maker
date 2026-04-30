@@ -9,7 +9,7 @@ import { useState } from 'react';
 import {
   getSessionList,
   deleteSession,
-  updateSessionTitle,
+  renameSession,
   type SessionSummary,
 } from '@/lib/chat/sessions';
 
@@ -17,9 +17,10 @@ interface Props {
   activeSessionId: string | null;
   onSelectSession: (sessionId: string | null) => void;
   onClose: () => void;
+  requireChoice?: boolean;
 }
 
-export default function ChatSessionModal({ activeSessionId, onSelectSession, onClose }: Props) {
+export default function ChatSessionModal({ activeSessionId, onSelectSession, onClose, requireChoice = false }: Props) {
   const [sessions, setSessions] = useState<SessionSummary[]>(() => getSessionList());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -32,7 +33,15 @@ export default function ChatSessionModal({ activeSessionId, onSelectSession, onC
   function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     deleteSession(id);
-    setSessions(getSessionList());
+    const nextSessions = getSessionList();
+    setSessions(nextSessions);
+
+    if (nextSessions.length === 0) {
+      onSelectSession(null);
+      onClose();
+      return;
+    }
+
     if (activeSessionId === id) {
       onSelectSession(null);
     }
@@ -45,7 +54,7 @@ export default function ChatSessionModal({ activeSessionId, onSelectSession, onC
   }
 
   function handleSaveEdit(id: string) {
-    updateSessionTitle(id, editingTitle.trim() || '제목 없음');
+    renameSession(id, editingTitle.trim() || '제목 없음');
     setEditingId(null);
     setSessions(getSessionList());
   }
@@ -77,21 +86,28 @@ export default function ChatSessionModal({ activeSessionId, onSelectSession, onC
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-bg-border)]">
           <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-            채팅 세션
+            {requireChoice ? '채팅 시작' : '채팅 세션'}
           </h2>
-          <button
-            id="session-modal-close"
-            onClick={onClose}
-            className="p-1 rounded hover:bg-[var(--color-bg-surface)] text-[var(--color-text-muted)]"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          {!requireChoice && (
+            <button
+              id="session-modal-close"
+              onClick={onClose}
+              className="p-1 rounded hover:bg-[var(--color-bg-surface)] text-[var(--color-text-muted)]"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* 새 세션 시작 */}
         <div className="px-5 py-3 border-b border-[var(--color-bg-border)]">
+          {requireChoice && (
+            <p className="mb-3 text-sm text-[var(--color-text-muted)]">
+              새 대화를 시작하거나 저장된 이전 세션을 불러오세요.
+            </p>
+          )}
           <button
             id="session-new-btn"
             onClick={handleCreate}
