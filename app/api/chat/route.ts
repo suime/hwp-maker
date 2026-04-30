@@ -1,92 +1,223 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { streamText, Message } from 'ai';
+// The root `ai` package in this workspace can be stale; use the AI SDK copy
+// installed with @ai-sdk/react so the route speaks the same stream protocol as useChat.
+import { convertToModelMessages, streamText } from '../../../node_modules/@ai-sdk/react/node_modules/ai/dist/index.mjs';
+import type { Attachment } from '@/types/attachment';
 
-// 최대 허용 시간을 30초로 설정 (기본값)
 export const maxDuration = 30;
+
+type AiConfig = {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+};
+
+type ChatRequestBody = {
+  messages?: unknown[];
+  config?: AiConfig;
+  systemPrompt?: string;
+  attachments?: Attachment[];
+};
+
+type TextPart = { type: 'text'; text: string };
+type FilePart = {
+  type: 'file';
+  mediaType: string;
+  filename?: string;
+  url: string;
+};
+type MessagePart = TextPart | FilePart;
+type ChatMessage = {
+  id: string;
+  role: 'system' | 'user' | 'assistant';
+  parts: MessagePart[];
+};
+
+function getTextFromParts(parts: MessagePart[]): string {
+  return parts
+    .map((part) => (part.type === 'text' ? part.text : ''))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function textPart(text: string): TextPart {
+  return { type: 'text', text };
+}
+
+function filePart(attachment: Attachment): FilePart {
+  return {
+    type: 'file',
+    mediaType: attachment.mimeType,
+    filename: attachment.name,
+    url: attachment.content,
+  };
+}
+
+function normalizePart(part: unknown): MessagePart[] {
+  if (!part || typeof part !== 'object') return [];
+
+  const candidate = part as {
+    type?: string;
+    text?: unknown;
+    mediaType?: unknown;
+    mimeType?: unknown;
+    filename?: unknown;
+    name?: unknown;
+    url?: unknown;
+    image_url?: unknown;
+    image?: unknown;
+  };
+
+  if (candidate.type === 'text' && typeof candidate.text === 'string') {
+    return [textPart(candidate.text)];
+  }
+
+  if (candidate.type === 'file' && typeof candidate.url === 'string') {
+    return [
+      {
+        type: 'file',
+        mediaType:
+          typeof candidate.mediaType === 'string'
+            ? candidate.mediaType
+            : typeof candidate.mimeType === 'string'
+              ? candidate.mimeType
+              : 'application/octet-stream',
+        filename:
+          typeof candidate.filename === 'string'
+            ? candidate.filename
+            : typeof candidate.name === 'string'
+              ? candidate.name
+              : undefined,
+        url: candidate.url,
+      },
+    ];
+  }
+
+  // Older OpenAI-style image parts occasionally appear in stored/client messages.
+  if (candidate.type === 'image_url') {
+    const imageUrl =
+      typeof candidate.image_url === 'string'
+        ? candidate.image_url
+        : candidate.image_url &&
+            typeof candidate.image_url === 'object' &&
+            'url' in candidate.image_url &&
+            typeof candidate.image_url.url === 'string'
+          ? candidate.image_url.url
+          : null;
+
+    return imageUrl
+      ? [{ type: 'file', mediaType: 'image/*', url: imageUrl }]
+      : [];
+  }
+
+  if (candidate.type === 'image' && typeof candidate.image === 'string') {
+    return [{ type: 'file', mediaType: 'image/*', url: candidate.image }];
+  }
+
+  // Drop UI-only/internal parts such as item_reference, step-start,
+  // tool-* and source-* before converting to model messages.
+  return [];
+}
+
+function normalizeMessage(message: unknown): ChatMessage | null {
+  if (!message || typeof message !== 'object') return null;
+
+  const candidate = message as {
+    id?: string;
+    role?: string;
+    parts?: unknown[];
+    content?: unknown;
+  };
+
+  if (
+    candidate.role !== 'system' &&
+    candidate.role !== 'user' &&
+    candidate.role !== 'assistant'
+  ) {
+    return null;
+  }
+
+  if (Array.isArray(candidate.parts)) {
+    const parts = candidate.parts.flatMap(normalizePart);
+    if (parts.length === 0) return null;
+
+    return {
+      id: candidate.id || crypto.randomUUID(),
+      role: candidate.role,
+      parts,
+    };
+  }
+
+  if (typeof candidate.content === 'string') {
+    return {
+      id: candidate.id || crypto.randomUUID(),
+      role: candidate.role,
+      parts: [textPart(candidate.content)],
+    };
+  }
+
+  return null;
+}
+
+function withAttachments(messages: ChatMessage[], attachments: Attachment[] = []) {
+  if (messages.length === 0 || attachments.length === 0) return messages;
+
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage.role !== 'user') return messages;
+
+  const textAttachments = attachments.filter((item) => item.fileType !== 'image');
+  const imageAttachments = attachments.filter((item) => item.fileType === 'image');
+  const currentText = getTextFromParts(lastMessage.parts);
+  const contextText = textAttachments
+    .map((item) => `[첨부 파일: ${item.name}]\n---\n${item.content}\n---`)
+    .join('\n\n');
+
+  const parts: MessagePart[] = [];
+  if (contextText) {
+    parts.push(textPart(`${contextText}\n\n위 파일을 참고하여:\n${currentText}`));
+  } else if (currentText) {
+    parts.push(textPart(currentText));
+  }
+
+  parts.push(...imageAttachments.map(filePart));
+
+  return [
+    ...messages.slice(0, -1),
+    {
+      ...lastMessage,
+      parts,
+    },
+  ];
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    console.log('Received Chat API Request Body:', JSON.stringify(body, null, 2));
-    
-    const { messages, config, systemPrompt, attachments } = body;
+    const body = (await req.json()) as ChatRequestBody;
+    const clientMessages = (body.messages || [])
+      .map(normalizeMessage)
+      .filter((message): message is ChatMessage => message !== null);
 
-    const baseUrl = config?.baseUrl || process.env.OPENAI_API_BASE_URL || 'https://api.openai.com/v1';
-    const apiKey = config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
-    const model = config?.model || 'gpt-4o';
+    const messages = withAttachments(clientMessages, body.attachments);
+    const baseURL =
+      body.config?.baseUrl ||
+      process.env.OPENAI_API_BASE_URL ||
+      'https://api.openai.com/v1';
+    const apiKey = body.config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
+    const model = body.config?.model || 'gpt-4o';
 
-    // OpenAI 호환 공급자 생성 (Ollama 포함)
-    const openai = createOpenAI({
-      baseURL: baseUrl,
-      apiKey: apiKey,
-    });
-
-    const coreMessages = [];
-    if (systemPrompt) {
-      coreMessages.push({ role: 'system', content: systemPrompt });
-    }
-
-    // 파일 첨부 처리가 필요할 경우
-    // 마지막 메시지가 user일 때 attachments 주입
-    if (messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === 'user' && attachments && attachments.length > 0) {
-        // ... 첨부파일 로직 (이미지는 imageUrl, 텍스트는 텍스트로)
-        const imageAttachments = attachments.filter((a: any) => a.fileType === 'image');
-        const textAttachments = attachments.filter((a: any) => a.fileType !== 'image');
-        
-        let contentStr = lastMsg.content;
-        if (textAttachments.length > 0) {
-           const context = textAttachments.map((a: any) => `[${a.name}]\n${a.content}`).join('\n\n');
-           contentStr = `${context}\n\n위 파일을 참고하여:\n${contentStr}`;
-        }
-        
-        if (imageAttachments.length > 0) {
-           lastMsg.content = [
-             { type: 'text', text: contentStr },
-             ...imageAttachments.map((a: any) => ({
-                type: 'image',
-                image: a.content // base64 Data URL
-             }))
-           ];
-        } else {
-           lastMsg.content = contentStr;
-        }
-      }
-    }
-
-    coreMessages.push(...messages);
-
+    const openai = createOpenAI({ baseURL, apiKey });
     const result = streamText({
       model: openai(model),
-      messages: coreMessages,
+      system: body.systemPrompt,
+      messages: await convertToModelMessages(messages),
     });
 
-    // v3 클라이언트(Data Stream Protocol)와의 호환성을 위해 수동으로 스트림 구성
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of result.textStream) {
-            // Data Stream Protocol 형식: 0:"텍스트"\n
-            controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
-          }
-        } catch (e) {
-          console.error('Stream error:', e);
-        } finally {
-          controller.close();
-        }
-      }
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'x-vercel-ai-data-stream': 'v1',
-      },
-    });
-  } catch (error: any) {
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
     console.error('Chat API Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Unknown chat error' },
+      { status: 500 }
+    );
   }
 }

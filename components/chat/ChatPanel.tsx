@@ -1,46 +1,134 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
+import type { UIMessage } from '@ai-sdk/react';
 import { BUILTIN_PROFILES, getActiveProfile, setActiveProfile, AiProfile } from '@/lib/ai/profiles';
 import { loadAiConfig } from '@/lib/ai/config';
 import { parseAiResponse } from '@/lib/ai/service';
 import { rhwpActions } from '@/lib/rhwp/loader';
 import type { Attachment } from '@/types/attachment';
 import { processFile } from '@/lib/attachment/reader';
+import {
+  createSession,
+  loadSession,
+  setActiveSessionId,
+  updateSessionMessages,
+  updateSessionTitle,
+  generateSessionTitle,
+  type SessionMessage,
+} from '@/lib/chat/sessions';
 import AttachButton from './AttachButton';
 import AttachmentPreview from './AttachmentPreview';
-import MessageAttachment from './MessageAttachment';
+import ChatSessionModal from './ChatSessionModal';
 
-// MessageAttachment type이 필요없어지면 제거
-// interface Message { ... }
-
-const WELCOME = {
-  id: 'welcome',
+const WELCOME_ID = 'welcome';
+const WELCOME_TEXT = '안녕하세요! hwp-maker AI 어시스턴트입니다.\n\n문서에 넣고 싶은 내용을 자연어로 입력하거나, 📎 버튼으로 참고 파일을 첨부해 보세요.\n예: "첨부한 보고서를 바탕으로 회의록을 작성해줘"';
+const WELCOME: UIMessage = {
+  id: WELCOME_ID,
   role: 'assistant' as const,
-  content: '안녕하세요! hwp-maker AI 어시스턴트입니다.\n\n문서에 넣고 싶은 내용을 자연어로 입력하거나, 📎 버튼으로 참고 파일을 첨부해 보세요.\n예: "첨부한 보고서를 바탕으로 회의록을 작성해줘"',
+  parts: [{ type: 'text', text: WELCOME_TEXT }],
 };
 
+function createWelcomeMessage() {
+  return { ...WELCOME, id: `${WELCOME_ID}-${Date.now()}` };
+}
+
+function createTextMessage(message: SessionMessage): UIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: [{ type: 'text', text: message.content }],
+  };
+}
+
+function messageContentToText(message: unknown): string {
+  if (typeof message === 'string') return message;
+  if (!message || typeof message !== 'object') return '';
+
+  const maybeMessage = message as {
+    content?: unknown;
+    parts?: unknown[];
+    text?: string;
+  };
+
+  if (typeof maybeMessage.content === 'string') return maybeMessage.content;
+  if (typeof maybeMessage.text === 'string') return maybeMessage.text;
+
+  const parts = Array.isArray(maybeMessage.parts)
+    ? maybeMessage.parts
+    : Array.isArray(maybeMessage.content)
+      ? maybeMessage.content
+      : null;
+
+  if (parts) {
+    return parts
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part === 'object') {
+          const maybePart = part as { type?: string; text?: string };
+          if (maybePart.type === 'text') return maybePart.text || '';
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return JSON.stringify(message);
+}
+
+function toSessionMessages(messages: UIMessage[]): SessionMessage[] {
+  return messages
+    .filter((message) => !String(message.id || '').startsWith(WELCOME_ID))
+    .map((message) => ({
+      id: message.id || crypto.randomUUID(),
+      role: message.role as 'user' | 'assistant' | 'system',
+      content: messageContentToText(message),
+    }))
+    .filter((message) => message.content.trim().length > 0);
+}
+
+function extractAssistantText(messageOrEvent: unknown): string {
+  const event = messageOrEvent as { message?: unknown; content?: unknown; text?: string };
+  return messageContentToText(
+    event?.message ??
+      event?.content ??
+      event?.text ??
+      ''
+  );
+}
+
 export default function ChatPanel() {
-  const [activeProfile, setActiveProfileState] = useState<AiProfile>(BUILTIN_PROFILES[0]);
+  const [activeProfile, setActiveProfileState] = useState<AiProfile>(() => getActiveProfile());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [processingFiles, setProcessingFiles] = useState(false);
-  
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+
   const [input, setInput] = useState('');
   const [currentConfig, setCurrentConfig] = useState(() => loadAiConfig());
-  
+  const currentSessionIdRef = useRef<string | null>(null);
+  const sessionAttachmentsRef = useRef<Attachment[]>([]);
+  const didInitSessionRef = useRef(false);
+
+  const setCurrentSession = useCallback((sessionId: string | null) => {
+    currentSessionIdRef.current = sessionId;
+    setCurrentSessionId(sessionId);
+    setActiveSessionId(sessionId);
+  }, []);
+
   useEffect(() => {
     const handleConfigChange = () => setCurrentConfig(loadAiConfig());
     window.addEventListener('ai-config-changed', handleConfigChange);
     return () => window.removeEventListener('ai-config-changed', handleConfigChange);
   }, []);
-  
+
   const { messages, sendMessage, status, setMessages } = useChat({
-    // @ts-ignore - useChat v3 options
+    // @ts-expect-error - 기존 /api/chat 라우트는 현재 AI SDK 호환 옵션으로 호출합니다.
     api: '/api/chat',
-    initialMessages: [WELCOME],
-    // @ts-ignore - useChat v3 options
+    messages: [WELCOME],
     body: {
       config: currentConfig,
       systemPrompt: activeProfile.systemPrompt,
@@ -48,26 +136,78 @@ export default function ChatPanel() {
     },
     onFinish: (message) => {
       // 에디터에 반영
-      const cleanText = parseAiResponse(message.content);
-      rhwpActions.insertText(cleanText);
+      const cleanText = parseAiResponse(extractAssistantText(message));
+      void rhwpActions.insertText(cleanText).catch((error) => {
+        console.warn('AI 응답을 에디터에 반영하지 못했습니다:', error);
+      });
     },
     onError: (error) => {
       console.error('AI 응답 에러:', error);
     }
   });
 
+  /** 세션 전환 시 메시지 복원 */
+  const handleSelectSession = useCallback((sessionId: string | null) => {
+    if (sessionId) {
+      const session = loadSession(sessionId);
+      if (session) {
+        setCurrentSession(sessionId);
+        sessionAttachmentsRef.current = session.attachments || [];
+        setMessages([createWelcomeMessage(), ...session.messages.map(createTextMessage)]);
+        setAttachments([]);
+        setInput('');
+      }
+    } else {
+      // 저장되지 않은 새 초안 세션으로 시작합니다. 첫 전송 시 저장됩니다.
+      setCurrentSession(null);
+      sessionAttachmentsRef.current = [];
+      setMessages([createWelcomeMessage()]);
+      setAttachments([]);
+      setInput('');
+    }
+  }, [setCurrentSession, setMessages]);
+
   const isLoading = status === 'submitted' || status === 'streaming';
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
 
+  // 초기 세션 로드
   useEffect(() => {
-    setActiveProfileState(getActiveProfile());
-  }, []);
+    if (didInitSessionRef.current) return;
+    didInitSessionRef.current = true;
+
+    // 앱을 처음 열면 항상 저장되지 않은 새 세션에서 시작합니다.
+    setCurrentSession(null);
+    setMessages([createWelcomeMessage()]);
+    setAttachments([]);
+  }, [setCurrentSession, setMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!currentSessionId) return;
+    const sessionMessages = toSessionMessages(messages);
+    if (sessionMessages.length === 0) return;
+
+    updateSessionTitle(currentSessionId, generateSessionTitle(sessionMessages));
+    updateSessionMessages(currentSessionId, sessionMessages, sessionAttachmentsRef.current);
+  }, [messages, currentSessionId]);
+
+  /** 사용자 메시지 전송 시 세션 저장 */
+  const handleSendMessage = useCallback((message: { text: string }, opts?: Parameters<typeof sendMessage>[1]) => {
+    let sessionId = currentSessionIdRef.current;
+    if (!sessionId) {
+      const newSession = createSession();
+      sessionId = newSession.id;
+      setCurrentSession(newSession.id);
+    }
+
+    sessionAttachmentsRef.current = attachments;
+    sendMessage(message, opts);
+  }, [attachments, sendMessage, setCurrentSession]);
 
   const handleProfileChange = (id: string) => {
     setActiveProfile(id);
@@ -96,14 +236,13 @@ export default function ChatPanel() {
       setAttachments(prev => [...prev, ...succeeded]);
     }
     if (errors.length > 0) {
-      // 오류 메시지를 어시스턴트 시스템 메시지로 추가할 수 없으므로(append 없음)
-      // messages에 직접 추가
+      // 오류 메시지를 어시스턴트 시스템 메시지로 추가
       setMessages(prev => [
         ...prev,
         {
           id: crypto.randomUUID(),
-          role: 'system',
-          content: `파일 처리 오류:\n${errors.join('\n')}`,
+          role: 'system' as const,
+          parts: [{ type: 'text', text: `파일 처리 오류:\n${errors.join('\n')}` }],
         }
       ]);
     }
@@ -165,6 +304,15 @@ export default function ChatPanel() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* 세션 모달 */}
+      {showSessionModal && (
+        <ChatSessionModal
+          activeSessionId={currentSessionId}
+          onSelectSession={handleSelectSession}
+          onClose={() => setShowSessionModal(false)}
+        />
+      )}
+
       {/* 드래그 오버레이 */}
       {isDragging && (
         <div
@@ -186,7 +334,16 @@ export default function ChatPanel() {
       {/* 헤더 */}
       <div className="panel-header border-b border-[var(--color-bg-border)]">
         <div className="flex justify-between items-center mb-1">
-          <h2 className="text-sm font-bold">AI 어시스턴트</h2>
+          <button
+            onClick={() => setShowSessionModal(true)}
+            className="flex items-center gap-1.5 hover:text-[var(--color-brand)] transition-colors"
+            title="세션 관리"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <span className="text-sm font-bold">AI 어시스턴트</span>
+          </button>
           <select
             value={activeProfile.id}
             onChange={(e) => handleProfileChange(e.target.value)}
@@ -220,7 +377,7 @@ export default function ChatPanel() {
                     }
               }
             >
-              {msg.content && <span>{msg.content}</span>}
+              <span>{messageContentToText(msg)}</span>
             </div>
           </div>
         ))}
@@ -260,13 +417,13 @@ export default function ChatPanel() {
         </div>
       )}
 
-      {/* 입력창 (Form 기반으로 변경) */}
+      {/* 입력창 */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (!canSend) return;
-          sendMessage(
-            { role: 'user', content: input.trim() },
+          handleSendMessage(
+            { text: input.trim() || '첨부 파일을 참고해 주세요.' },
             {
               body: {
                 config: currentConfig,

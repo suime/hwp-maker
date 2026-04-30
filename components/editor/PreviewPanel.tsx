@@ -1,11 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { setEditorInstance, RhwpEditorInstance } from '@/lib/rhwp/loader';
+import { setEditorInstance, RhwpDocumentContext, RhwpEditorInstance, RhwpField } from '@/lib/rhwp/loader';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 const STUDIO_URL = '/rhwp-studio/index.html';
+let rhwpRequestId = 0;
+
+type RhwpEmbeddedEditor = {
+  element: HTMLIFrameElement;
+  loadFile: (data: ArrayBuffer | Uint8Array, fileName?: string) => Promise<{ pageCount: number }>;
+  destroy: () => void;
+};
+
+type ExportFileResult = {
+  format: 'hwp' | 'hwpx';
+  mimeType: string;
+  data: number[];
+};
 
 export default function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,7 +27,7 @@ export default function PreviewPanel() {
   
   // Strict Mode 이중 실행 방지 및 인스턴스 참조 보관
   const initGuard = useRef(false);
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<RhwpEmbeddedEditor | null>(null);
 
   useEffect(() => {
     if (initGuard.current) return;
@@ -42,26 +55,61 @@ export default function PreviewPanel() {
           return;
         }
 
-        editorRef.current = editor;
+        editorRef.current = editor as RhwpEmbeddedEditor;
+
+        const request = <T,>(method: string, params: Record<string, unknown> = {}) => {
+          const iframe = (editor as RhwpEmbeddedEditor).element;
+          const target = iframe.contentWindow;
+
+          if (!target) {
+            return Promise.reject(new Error('에디터 iframe이 준비되지 않았습니다.'));
+          }
+
+          return new Promise<T>((resolve, reject) => {
+            const id = `hwp-maker:${++rhwpRequestId}`;
+            const timeout = window.setTimeout(() => {
+              window.removeEventListener('message', handleMessage);
+              reject(new Error(`rhwp 요청 시간이 초과되었습니다: ${method}`));
+            }, 10000);
+
+            const handleMessage = (event: MessageEvent) => {
+              if (event.source !== target) return;
+              const data = event.data;
+              if (!data || data.type !== 'rhwp-response' || data.id !== id) return;
+
+              window.clearTimeout(timeout);
+              window.removeEventListener('message', handleMessage);
+
+              if (data.error) {
+                reject(new Error(String(data.error)));
+              } else {
+                resolve(data.result as T);
+              }
+            };
+
+            window.addEventListener('message', handleMessage);
+            target.postMessage({ type: 'rhwp-request', id, method, params }, window.location.origin);
+          });
+        };
 
         // RhwpEditorInstance 인터페이스에 맞게 래핑하여 등록
         const wrappedInstance: RhwpEditorInstance = {
-          send: (command, data) => editor.send && editor.send(command, data),
+          readDocument: async () => request<RhwpDocumentContext>('getDocumentText'),
+          getFieldList: async () => request<RhwpField[]>('getFieldList'),
+          setFieldValueByName: async (name, value) =>
+            request('setFieldValueByName', { name, value }),
+          replaceAll: async (query, text, caseSensitive = false) =>
+            request('replaceAll', { query, text, caseSensitive }),
+          insertText: async (text, position) =>
+            request('insertText', { text, ...(position ?? { atCursor: true }) }),
           export: async (format) => {
-            if (typeof editor.export === 'function') {
-              return await editor.export({ format });
-            }
-            throw new Error('내보내기 기능이 구현되지 않았습니다.');
+            const result = await request<ExportFileResult>('exportFile', { format });
+            return new Blob([new Uint8Array(result.data)], { type: result.mimeType });
           },
           load: async (data) => {
             // @rhwp/editor 패키지 명세 확인 결과 메서드명이 loadFile 임
-            if (typeof editor.loadFile === 'function') {
-              await editor.loadFile(data);
-            } else if (typeof editor.load === 'function') {
-              await editor.load(data);
-            } else {
-              throw new Error('에디터에 로드 기능이 없습니다.');
-            }
+            const buffer = data instanceof Blob ? await data.arrayBuffer() : data;
+            await (editor as RhwpEmbeddedEditor).loadFile(buffer);
           },
           destroy: () => editor.destroy(),
         };
