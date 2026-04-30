@@ -27,12 +27,19 @@ import {
   type DocumentVariableProfile,
 } from '@/lib/templates/documentVariables';
 
+interface BuiltInPreset {
+  id: string;
+  name: string;
+  filePath: string;
+}
+
 export default function DocumentVariablesPanel() {
   const [documentVariables, setDocumentVariables] = useState<ActiveDocumentVariables | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(true);
   const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
+  const [builtInPresets, setBuiltInPresets] = useState<BuiltInPreset[]>([]);
   const [variableProfiles, setVariableProfiles] = useState<DocumentVariableProfile[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -41,6 +48,14 @@ export default function DocumentVariablesPanel() {
     const refreshProfiles = () => setVariableProfiles(getDocumentVariableProfiles());
     refresh();
     refreshProfiles();
+    fetch('/api/presets')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setBuiltInPresets(data);
+        }
+      })
+      .catch((error) => console.error('기본 프리셋 로드 실패:', error));
 
     const unsubscribeVariables = subscribeDocumentVariables(refresh);
     const unsubscribeProfiles = subscribeDocumentVariableProfiles(refreshProfiles);
@@ -241,6 +256,31 @@ export default function DocumentVariablesPanel() {
     updateDocumentVariables(profile.state);
   }
 
+  async function handleSelectBuiltInPreset(presetId: string) {
+    const preset = builtInPresets.find((item) => item.id === presetId);
+    if (!preset) return;
+
+    try {
+      const res = await fetch(preset.filePath);
+      if (!res.ok) throw new Error(`프리셋 파일을 불러올 수 없습니다. (${res.status})`);
+
+      const definition = parseAdvancedTemplateYaml(await res.text());
+      updateDocumentVariables(createDocumentVariablesState(preset.id, preset.name, definition));
+    } catch (error) {
+      console.error('[document-variables] 기본 프리셋 로드 실패:', error);
+      alert('기본 프리셋을 불러오지 못했습니다.');
+    }
+  }
+
+  function handleSelectPreset(presetId: string) {
+    if (!presetId) return;
+    if (presetId.startsWith('builtin-preset-')) {
+      void handleSelectBuiltInPreset(presetId);
+      return;
+    }
+    handleSelectProfile(presetId);
+  }
+
   function handleDeleteProfile() {
     if (!documentVariables) return;
     const profile = variableProfiles.find((item) => item.id === documentVariables.sourceId);
@@ -387,7 +427,10 @@ export default function DocumentVariablesPanel() {
 
   const variables = documentVariables?.definition.variables ?? [];
   const aiCount = variables.filter((variable) => variable.type === 'ai').length;
-  const selectedPresetId = documentVariables && variableProfiles.some((profile) => profile.id === documentVariables.sourceId)
+  const selectedPresetId = documentVariables && (
+    builtInPresets.some((preset) => preset.id === documentVariables.sourceId)
+    || variableProfiles.some((profile) => profile.id === documentVariables.sourceId)
+  )
     ? documentVariables.sourceId
     : '';
 
@@ -420,18 +463,31 @@ export default function DocumentVariablesPanel() {
         <div className="mt-2 flex items-center gap-1.5">
           <select
             value={selectedPresetId}
-            onChange={(event) => handleSelectProfile(event.target.value)}
+            onChange={(event) => handleSelectPreset(event.target.value)}
             className="min-w-0 flex-1 rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] px-2 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
             title="AI 프리셋 선택"
           >
             <option value="" disabled>
               AI 프리셋 선택
             </option>
-            {variableProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
-              </option>
-            ))}
+            {builtInPresets.length > 0 && (
+              <optgroup label="기본 프리셋">
+                {builtInPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {variableProfiles.length > 0 && (
+              <optgroup label="내 프리셋">
+                {variableProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <HeaderIconButton
             title="현재 변수 세트를 AI 프리셋으로 저장"
@@ -445,7 +501,7 @@ export default function DocumentVariablesPanel() {
           <HeaderIconButton
             title="현재 AI 프리셋 삭제"
             onClick={handleDeleteProfile}
-            disabled={!selectedPresetId}
+            disabled={!selectedPresetId || selectedPresetId.startsWith('builtin-preset-')}
           >
             <path d="M3 6h18" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
@@ -457,10 +513,11 @@ export default function DocumentVariablesPanel() {
       <div className="flex-1 overflow-y-auto p-3">
         {!documentVariables ? (
           <EmptyState
+            builtInPresets={builtInPresets}
             profiles={variableProfiles}
             onCreate={createEmptyDocumentVariables}
             onImport={() => importInputRef.current?.click()}
-            onSelectProfile={handleSelectProfile}
+            onSelectPreset={handleSelectPreset}
           />
         ) : (
           <div className="space-y-3">
@@ -654,15 +711,17 @@ function HeaderIconButton({
 }
 
 function EmptyState({
+  builtInPresets,
   profiles,
   onCreate,
   onImport,
-  onSelectProfile,
+  onSelectPreset,
 }: {
+  builtInPresets: BuiltInPreset[];
   profiles: DocumentVariableProfile[];
   onCreate: () => void;
   onImport: () => void;
-  onSelectProfile: (profileId: string) => void;
+  onSelectPreset: (presetId: string) => void;
 }) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-4 text-center">
@@ -689,20 +748,33 @@ function EmptyState({
         AI 프리셋을 선택하거나 변수 YAML을 가져와 시작하세요.
       </p>
       <div className="mt-4 flex w-full max-w-48 flex-col gap-2">
-        {profiles.length > 0 && (
+        {(builtInPresets.length > 0 || profiles.length > 0) && (
           <select
             defaultValue=""
-            onChange={(event) => onSelectProfile(event.target.value)}
+            onChange={(event) => onSelectPreset(event.target.value)}
             className="input py-1.5 text-xs"
           >
             <option value="" disabled>
               AI 프리셋 선택
             </option>
-            {profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
-              </option>
-            ))}
+            {builtInPresets.length > 0 && (
+              <optgroup label="기본 프리셋">
+                {builtInPresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {profiles.length > 0 && (
+              <optgroup label="내 프리셋">
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         )}
         <button type="button" onClick={onCreate} className="btn btn-primary py-1.5 text-xs">

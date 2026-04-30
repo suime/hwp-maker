@@ -114,6 +114,24 @@
 - [ ] 오래된 세션/큰 첨부파일로 인한 localStorage 용량 초과 대응
 - [ ] 세션 export/import 지원 여부 결정
 
+### 외부데이터 연계
+
+- [ ] 외부데이터 소스 범위 정의
+  - CSV/Excel 업로드
+  - JSON/API endpoint
+  - 공공데이터포털 등 OpenAPI
+  - Google Sheets/Notion 등 SaaS 연계 여부
+- [ ] 데이터 연결 정보 저장 방식 결정
+  - 우선 브라우저 localStorage/IndexedDB
+  - API key/token은 서버 저장 없이 브라우저 보관 원칙 유지
+  - 민감정보 안내 및 삭제 UX 포함
+- [ ] 외부데이터 스키마를 문서 변수와 매핑하는 UI 설계
+- [ ] 템플릿 YAML 변수와 외부데이터 필드의 우선순위 규칙 정의
+- [ ] 데이터 미리보기, 행 선택, 필터링 UX 설계
+- [ ] AI 프롬프트에 외부데이터를 bounded context로 주입하는 방식 정의
+- [ ] 대량 데이터 처리 제한과 오류 메시지 정책 수립
+- [ ] 새로고침/동기화 주기와 수동 재조회 UX 결정
+
 ### AI API
 
 - [x] `/api/chat` streaming proxy 구현

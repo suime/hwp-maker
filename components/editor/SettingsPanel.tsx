@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import { requestCompletion } from '@/lib/ai/client';
 import type { AiConfig } from '@/lib/ai/client';
@@ -117,8 +117,8 @@ export default function SettingsPanel({
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
         {/* AI 설정 */}
-        <section className="space-y-3">
-          <p className="section-label">AI 설정</p>
+        <SettingsSection>
+          <SettingsSectionTitle>AI 설정</SettingsSectionTitle>
 
           <div>
             <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
@@ -217,11 +217,11 @@ export default function SettingsPanel({
               {testMessage}
             </p>
           )}
-        </section>
+        </SettingsSection>
 
         {/* 편집기 설정 */}
-        <section className="space-y-3">
-          <p className="section-label">편집기 설정</p>
+        <SettingsSection>
+          <SettingsSectionTitle>편집기 설정</SettingsSectionTitle>
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>사이드바 위치</span>
             <div className="flex bg-surface rounded-lg p-1" style={{ background: 'var(--color-bg-surface)' }}>
@@ -264,11 +264,11 @@ export default function SettingsPanel({
           <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
             추가 편집기 설정은 추후 제공 예정입니다.
           </p>
-        </section>
+        </SettingsSection>
 
         {/* 데이터 설정 */}
-        <section className="space-y-3">
-          <p className="section-label">데이터</p>
+        <SettingsSection>
+          <SettingsSectionTitle>데이터</SettingsSectionTitle>
           <div className="space-y-2">
             <DataResetButton
               id="settings-clear-chat"
@@ -301,7 +301,7 @@ export default function SettingsPanel({
               {dataMessage}
             </p>
           )}
-        </section>
+        </SettingsSection>
       </div>
 
       {/* 저장 버튼 */}
@@ -315,6 +315,37 @@ export default function SettingsPanel({
           {saved ? '✓ 저장됨' : '저장'}
         </button>
       </div>
+    </div>
+  );
+}
+
+function SettingsSection({ children }: { children: ReactNode }) {
+  return (
+    <section
+      className="space-y-3 rounded-xl border p-3.5 shadow-sm"
+      style={{
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 5%, var(--color-bg-base)), var(--color-bg-base) 56px)',
+        borderColor: 'color-mix(in srgb, var(--color-brand) 32%, var(--color-bg-border))',
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
+function SettingsSectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className="h-4 w-1 rounded-full"
+        style={{ background: 'var(--color-brand)' }}
+      />
+      <p
+        className="text-xs font-semibold"
+        style={{ color: 'var(--color-brand)' }}
+      >
+        {children}
+      </p>
     </div>
   );
 }

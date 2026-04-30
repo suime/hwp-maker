@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent, type ReactNode } from 'react';
 import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
+import { extractTemplatePreviewObjectUrl } from '@/lib/templates/preview';
 
 interface Template {
   id: string;
@@ -10,6 +11,7 @@ interface Template {
   builtIn: boolean;
   advanced?: boolean;
   filePath?: string;
+  previewUrl?: string;
   data?: ArrayBuffer;
 }
 
@@ -40,6 +42,7 @@ export default function TemplatePanel() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const userPreviewUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     // 0. 에디터 준비 상태 구독
@@ -57,7 +60,11 @@ export default function TemplatePanel() {
       })
       .catch(err => console.error('기본 템플릿 로드 실패:', err));
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      userPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      userPreviewUrlsRef.current = [];
+    };
   }, []);
 
   async function handleSelect(template: Template) {
@@ -106,13 +113,18 @@ export default function TemplatePanel() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const data = reader.result as ArrayBuffer;
+      const previewUrl = await extractTemplatePreviewObjectUrl(data);
+      if (previewUrl) userPreviewUrlsRef.current.push(previewUrl);
+
       const newTemplate: Template = {
         id: `user-${Date.now()}`,
         name: file.name.replace(/\.(hwp|hwpx)$/i, ''),
         description: '사용자 업로드 템플릿',
         builtIn: false,
-        data: reader.result as ArrayBuffer,
+        previewUrl,
+        data,
       };
       const updated = [...myTemplates, newTemplate];
       setMyTemplates(updated);
@@ -124,6 +136,12 @@ export default function TemplatePanel() {
   }
 
   function handleDelete(id: string) {
+    const target = myTemplates.find((t) => t.id === id);
+    if (target?.previewUrl) {
+      URL.revokeObjectURL(target.previewUrl);
+      userPreviewUrlsRef.current = userPreviewUrlsRef.current.filter((url) => url !== target.previewUrl);
+    }
+
     const updated = myTemplates.filter((t) => t.id !== id);
     setMyTemplates(updated);
     if (activeId === id) setActiveId(null);
@@ -157,8 +175,8 @@ export default function TemplatePanel() {
 
       {/* 목록 */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        <section>
-          <p className="section-label">기본 템플릿</p>
+        <TemplateSection>
+          <TemplateSectionTitle>기본 템플릿</TemplateSectionTitle>
           <ul className="space-y-0.5">
             {builtinTemplates.length === 0 ? (
               <p className="text-[10px] px-2 py-2 text-[var(--color-text-muted)] italic">
@@ -176,10 +194,10 @@ export default function TemplatePanel() {
               ))
             )}
           </ul>
-        </section>
+        </TemplateSection>
 
-        <section>
-          <p className="section-label">내 템플릿</p>
+        <TemplateSection>
+          <TemplateSectionTitle>내 템플릿</TemplateSectionTitle>
           {myTemplates.length === 0 ? (
             <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
               + 버튼으로 hwpx 파일을 추가하세요
@@ -198,8 +216,39 @@ export default function TemplatePanel() {
               ))}
             </ul>
           )}
-        </section>
+        </TemplateSection>
       </div>
+    </div>
+  );
+}
+
+function TemplateSection({ children }: { children: ReactNode }) {
+  return (
+    <section
+      className="space-y-3 rounded-xl border p-3.5 shadow-sm"
+      style={{
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 5%, var(--color-bg-base)), var(--color-bg-base) 56px)',
+        borderColor: 'color-mix(in srgb, var(--color-brand) 32%, var(--color-bg-border))',
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
+function TemplateSectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className="h-4 w-1 rounded-full"
+        style={{ background: 'var(--color-brand)' }}
+      />
+      <p
+        className="text-xs font-semibold"
+        style={{ color: 'var(--color-brand)' }}
+      >
+        {children}
+      </p>
     </div>
   );
 }
@@ -224,17 +273,34 @@ function TemplateItem({
         if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
       }}
     >
-      {/* 문서 아이콘 */}
-      <svg
-        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"
-        style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text-muted)' }}
+      <div
+        className="w-10 h-13 flex-shrink-0 overflow-hidden rounded border flex items-center justify-center"
+        style={{
+          background: 'var(--color-bg-surface)',
+          borderColor: isActive ? 'color-mix(in srgb, var(--color-brand) 35%, transparent)' : 'var(--color-bg-border)',
+        }}
       >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-      </svg>
+        {template.previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={template.previewUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <svg
+            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+            style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text-muted)' }}
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        )}
+      </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { extractTemplatePreviewBytes } from '@/lib/templates/preview';
 
 /**
  * public/templates 디렉토리의 파일 목록을 반환합니다.
@@ -16,10 +17,16 @@ export async function GET() {
 
     const files = fs.readdirSync(templatesDir);
     
-    const templates = files
+    const templateFiles = files
       .filter(file => file.endsWith('.hwp') || file.endsWith('.hwpx'))
-      .map(file => {
+    
+    const templates = await Promise.all(templateFiles.map(async (file) => {
         const name = file.replace(/\.(hwp|hwpx)$/i, '');
+        const fileBuffer = fs.readFileSync(path.join(templatesDir, file));
+        const previewBytes = await extractTemplatePreviewBytes(fileBuffer);
+        const previewUrl = previewBytes
+          ? `data:image/png;base64,${Buffer.from(previewBytes).toString('base64')}`
+          : undefined;
 
         return {
           id: `builtin-${file}`,
@@ -27,8 +34,9 @@ export async function GET() {
           description: `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
           builtIn: true,
           filePath: `/templates/${file}`,
+          previewUrl,
         };
-      });
+      }));
 
     return NextResponse.json(templates);
   } catch (error) {
