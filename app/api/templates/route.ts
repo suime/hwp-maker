@@ -73,6 +73,7 @@ export async function GET() {
           description: `${file.endsWith('.hwp') ? 'hwp' : 'hwpx'} 양식 파일`,
           builtIn: true,
           folder,
+          fileName: file,
           filePath: toPublicTemplatePath(relativePath),
           previewUrl,
         };

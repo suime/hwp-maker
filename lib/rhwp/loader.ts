@@ -17,7 +17,7 @@ export interface RhwpEditorInstance {
   /** 현재 문서를 특정 포맷으로 내보냅니다. */
   export: (format: 'hwp' | 'hwpx') => Promise<Blob>;
   /** 문서를 에디터에 로드합니다. */
-  load: (data: Blob | ArrayBuffer) => Promise<void>;
+  load: (data: Blob | ArrayBuffer, fileName?: string) => Promise<void>;
   /** 에디터 리소스를 해제합니다. */
   destroy: () => void;
 }
@@ -129,10 +129,10 @@ export const rhwpActions = {
     return await _editorInstance.insertText(text);
   },
   /** 문서 로드 (ArrayBuffer/Blob) */
-  load: async (data: Blob | ArrayBuffer) => {
+  load: async (data: Blob | ArrayBuffer, fileName?: string) => {
     if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
     // PreviewPanel에서 래핑된 인스턴스의 load 메서드(loadFile 호출)를 실행
-    await _editorInstance.load(data);
+    await _editorInstance.load(data, fileName);
   },
   /** 문서 내보내기 */
   export: async (format: 'hwp' | 'hwpx') => {

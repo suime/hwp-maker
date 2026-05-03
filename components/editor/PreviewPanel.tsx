@@ -20,6 +20,11 @@ type ExportFileResult = {
   data: number[];
 };
 
+function toRhwpSafeFileName(fileName?: string) {
+  const normalized = fileName?.toLowerCase() || '';
+  return normalized.endsWith('.hwpx') ? 'document.hwpx' : 'document.hwp';
+}
+
 export default function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setLoadState] = useState<LoadState>('idle');
@@ -106,10 +111,10 @@ export default function PreviewPanel() {
             const result = await request<ExportFileResult>('exportFile', { format });
             return new Blob([new Uint8Array(result.data)], { type: result.mimeType });
           },
-          load: async (data) => {
+          load: async (data, fileName) => {
             // @rhwp/editor 패키지 명세 확인 결과 메서드명이 loadFile 임
             const buffer = data instanceof Blob ? await data.arrayBuffer() : data;
-            await (editor as RhwpEmbeddedEditor).loadFile(buffer);
+            await (editor as RhwpEmbeddedEditor).loadFile(buffer, toRhwpSafeFileName(fileName));
           },
           destroy: () => editor.destroy(),
         };

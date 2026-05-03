@@ -156,15 +156,21 @@ export default function EditorLayout() {
               className="flex flex-col flex-shrink-0 overflow-hidden"
               style={{ width: sidebarWidth }}
             >
-              {activeTab === 'chat' && <ChatPanel />}
-              {activeTab === 'template' && <TemplatePanel />}
-              {activeTab === 'variables' && <DocumentVariablesPanel />}
-              {activeTab === 'settings' && (
+              <div className={activeTab === 'chat' ? 'h-full min-h-0' : 'hidden'} aria-hidden={activeTab !== 'chat'}>
+                <ChatPanel />
+              </div>
+              <div className={activeTab === 'template' ? 'h-full min-h-0' : 'hidden'} aria-hidden={activeTab !== 'template'}>
+                <TemplatePanel />
+              </div>
+              <div className={activeTab === 'variables' ? 'h-full min-h-0' : 'hidden'} aria-hidden={activeTab !== 'variables'}>
+                <DocumentVariablesPanel />
+              </div>
+              <div className={activeTab === 'settings' ? 'h-full min-h-0' : 'hidden'} aria-hidden={activeTab !== 'settings'}>
                 <SettingsPanel
                   sidebarPosition={sidebarPosition}
                   onChangeSidebarPosition={handleSidebarPositionChange}
                 />
-              )}
+              </div>
             </aside>
 
             {/* 리사이즈 핸들 */}

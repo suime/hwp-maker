@@ -5,6 +5,7 @@ import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
 import { extractTemplatePreviewObjectUrl } from '@/lib/templates/preview';
 import Dialog from '@/components/ui/Dialog';
 import PromptDialog from '@/components/ui/PromptDialog';
+import { getAllUserTemplates, saveUserTemplate, deleteUserTemplate, type UserTemplate } from '@/lib/rhwp/templates';
 
 interface Template {
   id: string;
@@ -13,14 +14,15 @@ interface Template {
   folder?: string;
   builtIn: boolean;
   advanced?: boolean;
+  fileName?: string;
   filePath?: string;
   previewUrl?: string;
   data?: ArrayBuffer;
 }
 
 // 기존 하드코딩 목록 제거 (API에서 로드)
-const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
 const MY_TEMPLATE_FOLDERS_KEY = 'hwp-maker:my-template-folders';
+const COLLAPSED_FOLDERS_KEY = 'hwp-maker:collapsed-template-folders';
 const DEFAULT_TEMPLATE_FOLDER = '기본';
 const DEFAULT_USER_TEMPLATE_FOLDER = '내 템플릿';
 
@@ -28,17 +30,21 @@ function hasDocumentContent(text?: string) {
   return Boolean(text?.replace(/\s+/g, '').length);
 }
 
-function loadMyTemplates() {
-  if (typeof window === 'undefined') return [];
-  const raw = localStorage.getItem(MY_TEMPLATES_KEY);
-  if (!raw) return [];
-
+function loadCollapsedFolders(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  const raw = localStorage.getItem(COLLAPSED_FOLDERS_KEY);
+  if (!raw) return new Set();
   try {
-    return JSON.parse(raw) as Template[];
-  } catch (error) {
-    console.error('사용자 템플릿 로드 실패', error);
-    return [];
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
   }
+}
+
+function saveCollapsedFolders(folders: Set<string>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify(Array.from(folders)));
 }
 
 function loadMyTemplateFolders() {
@@ -67,6 +73,19 @@ function normalizeUserFolderName(folder?: string) {
 function normalizeFolderNames(folders: string[]) {
   const names = folders.map(normalizeUserFolderName);
   return Array.from(new Set([DEFAULT_USER_TEMPLATE_FOLDER, ...names]));
+}
+
+function inferTemplateSourceFileName(template: Template) {
+  if (template.fileName) return template.fileName;
+  const pathName = template.filePath?.split('/').pop();
+  if (pathName) return decodeURIComponent(pathName);
+  return `${template.name}.hwpx`;
+}
+
+function toRhwpLoadFileName(template: Template) {
+  const sourceName = inferTemplateSourceFileName(template);
+  const extension = sourceName.toLowerCase().endsWith('.hwp') ? 'hwp' : 'hwpx';
+  return `document.${extension}`;
 }
 
 function saveMyTemplateFolders(folders: string[]) {
@@ -101,9 +120,9 @@ function createUserTemplateFolders(templates: Template[], folderNames: string[])
 
 export default function TemplatePanel() {
   const [builtinTemplates, setBuiltinTemplates] = useState<Template[]>([]);
-  const [myTemplates, setMyTemplates] = useState<Template[]>(loadMyTemplates);
+  const [myTemplates, setMyTemplates] = useState<Template[]>([]);
   const [myFolders, setMyFolders] = useState<string[]>(loadMyTemplateFolders);
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(loadCollapsedFolders);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
@@ -148,6 +167,19 @@ export default function TemplatePanel() {
         }
       })
       .catch(err => console.error('기본 템플릿 로드 실패:', err));
+
+    // 2. IndexedDB에서 사용자 템플릿 로드
+    getAllUserTemplates().then(async (templates) => {
+      const mappedTemplates: Template[] = await Promise.all(templates.map(async (t) => {
+        const previewUrl = await extractTemplatePreviewObjectUrl(t.data);
+        if (previewUrl) userPreviewUrlsRef.current.push(previewUrl);
+        return {
+          ...t,
+          previewUrl,
+        };
+      }));
+      setMyTemplates(mappedTemplates);
+    });
 
     return () => {
       unsubscribe();
@@ -202,7 +234,7 @@ export default function TemplatePanel() {
         throw new Error('데이터가 없습니다.');
       }
 
-      await rhwpActions.load(buffer);
+      await rhwpActions.load(buffer, toRhwpLoadFileName(template));
       console.log('[template] 로드 완료:', template.name);
     } catch (err) {
       console.error('[template] 로드 에러:', err);
@@ -227,6 +259,7 @@ export default function TemplatePanel() {
         setCollapsedFolders((current) => {
           const next = new Set(current);
           next.delete(`user:${folderName}`);
+          saveCollapsedFolders(next);
           return next;
         });
       },
@@ -242,6 +275,7 @@ export default function TemplatePanel() {
       } else {
         next.add(key);
       }
+      saveCollapsedFolders(next);
       return next;
     });
   }
@@ -260,35 +294,43 @@ export default function TemplatePanel() {
       const previewUrl = await extractTemplatePreviewObjectUrl(data);
       if (previewUrl) userPreviewUrlsRef.current.push(previewUrl);
 
-      const newTemplate: Template = {
+      const userTemplate: UserTemplate = {
         id: `user-${Date.now()}`,
         name: file.name.replace(/\.(hwp|hwpx)$/i, ''),
+        fileName: file.name,
         description: '사용자 업로드 템플릿',
         folder: uploadTargetFolderRef.current,
         builtIn: false,
-        previewUrl,
         data,
+        createdAt: Date.now(),
       };
-      const updated = [...myTemplates, newTemplate];
-      setMyTemplates(updated);
+
+      await saveUserTemplate(userTemplate);
+
+      const nextTemplate: Template = {
+        ...userTemplate,
+        previewUrl,
+      };
+
+      setMyTemplates(prev => [...prev, nextTemplate]);
       setMyFolders((current) => {
         const next = normalizeFolderNames([...current, uploadTargetFolderRef.current]);
         saveMyTemplateFolders(next);
         return next;
       });
-      // ArrayBuffer는 JSON.stringify가 안되므로 실제 앱에선 인덱스드DB 등을 고려해야 함
-      // 여기선 세션 내에서만 유지되도록 처리 (스토리지는 메타만)
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     const target = myTemplates.find((t) => t.id === id);
     if (target?.previewUrl) {
       URL.revokeObjectURL(target.previewUrl);
       userPreviewUrlsRef.current = userPreviewUrlsRef.current.filter((url) => url !== target.previewUrl);
     }
+
+    await deleteUserTemplate(id);
 
     const updated = myTemplates.filter((t) => t.id !== id);
     setMyTemplates(updated);

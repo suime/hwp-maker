@@ -38,16 +38,40 @@ interface BuiltInPreset {
 
 const AI_CONFIG_ERROR_MESSAGE = 'AI 설정이 되어 있지 않거나 올바르지 않습니다. 설정에서 AI 프로바이더, API 키, 모델, Base URL을 확인해주세요.';
 const DEFAULT_VARIABLE_FOLDER = '기본';
+const DOCUMENT_INFO_COLLAPSED_KEY = 'hwp-maker:document-variables:document-info-collapsed';
+const COLLAPSED_FOLDERS_KEY = 'hwp-maker:document-variables:collapsed-folders';
 
 class UserFacingAiError extends Error {}
+
+function loadDocumentInfoCollapsed() {
+  if (typeof window === 'undefined') return true;
+  return localStorage.getItem(DOCUMENT_INFO_COLLAPSED_KEY) !== 'false';
+}
+
+function loadCollapsedFolders() {
+  if (typeof window === 'undefined') return new Set<string>();
+
+  try {
+    const raw = localStorage.getItem(COLLAPSED_FOLDERS_KEY);
+    const folders = raw ? JSON.parse(raw) as string[] : [];
+    return new Set(folders);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveCollapsedFolders(folders: Set<string>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify(Array.from(folders)));
+}
 
 export default function DocumentVariablesPanel() {
   const [documentVariables, setDocumentVariables] = useState<ActiveDocumentVariables | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
-  const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(true);
+  const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(loadDocumentInfoCollapsed);
   const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
+  const [collapsedFolders, setCollapsedFolders] = useState(loadCollapsedFolders);
   const [builtInPresets, setBuiltInPresets] = useState<BuiltInPreset[]>([]);
   const [variableProfiles, setVariableProfiles] = useState<DocumentVariableProfile[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -188,6 +212,7 @@ export default function DocumentVariablesPanel() {
         setCollapsedFolders((current) => {
           const next = new Set(current);
           next.delete(folderName);
+          saveCollapsedFolders(next);
           return next;
         });
       },
@@ -521,6 +546,17 @@ export default function DocumentVariablesPanel() {
       } else {
         next.add(folderName);
       }
+      saveCollapsedFolders(next);
+      return next;
+    });
+  }
+
+  function toggleDocumentInfoCollapsed() {
+    setIsDocumentInfoCollapsed((current) => {
+      const next = !current;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DOCUMENT_INFO_COLLAPSED_KEY, String(next));
+      }
       return next;
     });
   }
@@ -621,7 +657,7 @@ export default function DocumentVariablesPanel() {
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => setIsDocumentInfoCollapsed((value) => !value)}
+                  onClick={toggleDocumentInfoCollapsed}
                   className="flex w-full items-center justify-between gap-2 text-left text-[11px] font-semibold"
                   style={{ color: 'var(--color-text-secondary)' }}
                   aria-expanded={!isDocumentInfoCollapsed}
@@ -1076,9 +1112,9 @@ function EmptyState({
                 ))}
               </optgroup>
             )}
-            {variableProfiles.length > 0 && (
+            {profiles.length > 0 && (
               <optgroup label="내 프리셋">
-                {variableProfiles.map((profile) => (
+                {profiles.map((profile) => (
                   <option key={profile.id} value={profile.id}>
                     {profile.name}
                   </option>

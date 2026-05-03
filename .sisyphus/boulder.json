@@ -1,0 +1,31 @@
+{
+  "active_plan": "C:\\Users\\dbro\\project\\github.com\\suime\\hwp-maker\\.sisyphus\\plans\\offline-docker-deployment.md",
+  "started_at": "2026-05-03T15:17:24.676Z",
+  "session_ids": [
+    "ses_211b19c39ffei8Yh9MgTGEnz2u",
+    "ses_21194a00dffed2mUargCo6uQ54",
+    "ses_211949fbcffexy5xeG3eQ5BYB0",
+    "ses_211945130ffenZRKmPVd95Lq7Y",
+    "ses_211945117ffebhYy0ZVvN49NE6"
+  ],
+  "session_origins": {
+    "ses_211b19c39ffei8Yh9MgTGEnz2u": "direct",
+    "ses_21194a00dffed2mUargCo6uQ54": "appended",
+    "ses_211949fbcffexy5xeG3eQ5BYB0": "appended",
+    "ses_211945130ffenZRKmPVd95Lq7Y": "appended",
+    "ses_211945117ffebhYy0ZVvN49NE6": "appended"
+  },
+  "plan_name": "offline-docker-deployment",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "next.config.ts에 `output: 'standalone'` 추가",
+      "session_id": "ses_211945130ffenZRKmPVd95Lq7Y",
+      "agent": "explore",
+      "category": "",
+      "updated_at": "2026-05-03T15:18:47.817Z"
+    }
+  }
+}
