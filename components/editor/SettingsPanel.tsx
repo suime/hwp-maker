@@ -7,6 +7,7 @@ import type { AiConfig } from '@/lib/ai/client';
 import { switchAiProvider } from '@/lib/ai/providers';
 import { clearAllSessions } from '@/lib/chat/sessions';
 import { clearSession } from '@/lib/session';
+import Dialog from '@/components/ui/Dialog';
 import {
   applyTheme,
   getStoredTheme,
@@ -41,6 +42,12 @@ export default function SettingsPanel({
   const [saved, setSaved] = useState(false);
   const [dataMessage, setDataMessage] = useState('');
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme() ?? getSystemTheme());
+
+  // 다이얼로그 상태
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; action: DataAction | null }>({
+    isOpen: false,
+    action: null,
+  });
 
   const currentThemePreset = getThemePreset(theme);
 
@@ -93,6 +100,10 @@ export default function SettingsPanel({
   }
 
   function handleDataAction(action: DataAction) {
+    setConfirmDialog({ isOpen: true, action });
+  }
+
+  function executeDataAction(action: DataAction) {
     const messages: Record<DataAction, { confirm: string; done: string }> = {
       chat: {
         confirm: '모든 대화 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.',
@@ -107,8 +118,6 @@ export default function SettingsPanel({
         done: '앱 데이터를 모두 초기화했습니다. 화면을 새로고침합니다.',
       },
     };
-
-    if (!window.confirm(messages[action].confirm)) return;
 
     if (action === 'chat') {
       clearAllSessions();
@@ -431,6 +440,28 @@ export default function SettingsPanel({
           {saved ? '✓ 저장됨' : '저장'}
         </button>
       </div>
+
+      {/* 다이얼로그 */}
+      <Dialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, action: null })}
+        title={
+          confirmDialog.action === 'app' ? '전체 초기화' :
+          confirmDialog.action === 'chat' ? '대화 삭제' : '템플릿 초기화'
+        }
+        onConfirm={() => {
+          if (confirmDialog.action) executeDataAction(confirmDialog.action);
+          setConfirmDialog({ isOpen: false, action: null });
+        }}
+        confirmText="삭제/초기화"
+        type={confirmDialog.action === 'app' ? 'error' : 'warning'}
+      >
+        {confirmDialog.action && (
+          confirmDialog.action === 'chat' ? '모든 대화 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.' :
+          confirmDialog.action === 'templates' ? '사용자가 추가한 템플릿을 초기화할까요?' :
+          '앱의 모든 로컬 데이터를 초기화할까요? 설정, 대화, 템플릿, 프리셋, 편집 세션이 모두 삭제됩니다.'
+        )}
+      </Dialog>
     </div>
   );
 }

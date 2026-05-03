@@ -26,6 +26,9 @@ import {
   type ActiveDocumentVariables,
   type DocumentVariableProfile,
 } from '@/lib/templates/documentVariables';
+import Dialog from '@/components/ui/Dialog';
+import PromptDialog from '@/components/ui/PromptDialog';
+import VariableEditModal from './VariableEditModal';
 
 interface BuiltInPreset {
   id: string;
@@ -48,6 +51,27 @@ export default function DocumentVariablesPanel() {
   const [builtInPresets, setBuiltInPresets] = useState<BuiltInPreset[]>([]);
   const [variableProfiles, setVariableProfiles] = useState<DocumentVariableProfile[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 다이얼로그 상태
+  const [isVariableModalOpen, setIsVariableModalOpen] = useState(false);
+  const [editingVariable, setEditingVariable] = useState<{ index: number; variable: AdvancedTemplateVariable } | null>(null);
+  const [alertDialog, setAlertDialog] = useState<{ isOpen: boolean; title: string; message: string; type?: 'info' | 'warning' | 'error' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [promptDialog, setPromptDialog] = useState<{ isOpen: boolean; title: string; message: string; defaultValue?: string; onConfirm: (value: string) => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     const refresh = () => setDocumentVariables(loadDocumentVariables());
@@ -75,6 +99,10 @@ export default function DocumentVariablesPanel() {
       unsubscribeEditor();
     };
   }, []);
+
+  function showAlert(title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') {
+    setAlertDialog({ isOpen: true, title, message, type });
+  }
 
   function handleVariableChange(name: string, value: string) {
     if (!documentVariables) return;
@@ -124,160 +152,146 @@ export default function DocumentVariablesPanel() {
     updateDocumentVariables(next);
   }
 
-  function getDefaultFolder() {
-    return documentVariables?.definition.folders?.[0] || '';
-  }
-
   function handleAddFolder() {
-    const name = window.prompt('추가할 폴더 이름을 입력하세요.');
-    const folderName = name?.trim();
-    if (!folderName) return;
+    setPromptDialog({
+      isOpen: true,
+      title: '폴더 추가',
+      message: '추가할 폴더 이름을 입력하세요.',
+      onConfirm: (name) => {
+        const folderName = name?.trim();
+        if (!folderName) return;
 
-    if (!documentVariables) {
-      updateDocumentVariables(createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
-        author: '',
-        description: '',
-        systemPrompt: '',
-        folders: [folderName],
-        variables: [],
-      }));
-      return;
-    }
+        if (!documentVariables) {
+          updateDocumentVariables(createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
+            author: '',
+            description: '',
+            systemPrompt: '',
+            folders: [folderName],
+            variables: [],
+          }));
+          return;
+        }
 
-    const currentFolders = documentVariables.definition.folders || [];
-    if (currentFolders.includes(folderName)) {
-      alert('이미 같은 이름의 폴더가 있습니다.');
-      return;
-    }
+        const currentFolders = documentVariables.definition.folders || [];
+        if (currentFolders.includes(folderName)) {
+          showAlert('중복', '이미 같은 이름의 폴더가 있습니다.', 'warning');
+          return;
+        }
 
-    updateDocumentVariables({
-      ...documentVariables,
-      definition: {
-        ...documentVariables.definition,
-        folders: [...currentFolders, folderName],
+        updateDocumentVariables({
+          ...documentVariables,
+          definition: {
+            ...documentVariables.definition,
+            folders: [...currentFolders, folderName],
+          },
+        });
+        setCollapsedFolders((current) => {
+          const next = new Set(current);
+          next.delete(folderName);
+          return next;
+        });
       },
     });
-    setCollapsedFolders((current) => {
-      const next = new Set(current);
-      next.delete(folderName);
-      return next;
-    });
-  }
-
-  function createVariableName() {
-    const existing = new Set(documentVariables?.definition.variables.map((variable) => variable.name));
-    let index = (existing?.size ?? 0) + 1;
-    let name = `variable${index}`;
-    while (existing?.has(name)) {
-      index += 1;
-      name = `variable${index}`;
-    }
-    return name;
   }
 
   function handleAddVariable() {
     if (!documentVariables) {
-      const name = 'variable1';
-      const variable: AdvancedTemplateVariable = {
-        name,
-        label: '새 변수',
-        type: 'text',
-        folder: DEFAULT_VARIABLE_FOLDER,
-        defaultValue: '',
-        options: [],
-        optionRules: [],
-        description: '',
-      };
-      updateDocumentVariables(createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
-        author: '',
-        description: '',
-        systemPrompt: '',
-        folders: [DEFAULT_VARIABLE_FOLDER],
-        variables: [variable],
-      }));
-      return;
+      createEmptyDocumentVariables();
     }
-
-    const name = createVariableName();
-    const variable: AdvancedTemplateVariable = {
-      name,
-      label: '새 변수',
-      type: 'text',
-      folder: getDefaultFolder(),
-      defaultValue: '',
-      options: [],
-      optionRules: [],
-      description: '',
-    };
-    updateDocumentVariables({
-      ...documentVariables,
-      definition: {
-        ...documentVariables.definition,
-        variables: [...documentVariables.definition.variables, variable],
-      },
-      values: {
-        ...documentVariables.values,
-        [name]: evaluateTemplateVariable(variable, documentVariables.values),
-      },
-    });
+    setIsVariableModalOpen(true);
   }
 
-  function handleUpdateVariable(index: number, nextVariable: AdvancedTemplateVariable) {
-    if (!documentVariables) return false;
+  function handleSaveVariable(variable: AdvancedTemplateVariable) {
+    if (!documentVariables) return;
 
-    const current = documentVariables.definition.variables[index];
-    if (!current) return false;
+    if (editingVariable) {
+      // 수정인 경우
+      const { index, variable: current } = editingVariable;
+      const name = normalizeVariableName(variable.name) || current.name;
+      const duplicate = documentVariables.definition.variables.some((v, i) =>
+        i !== index && v.name === name
+      );
+      if (duplicate) {
+        showAlert('중복', '이미 같은 이름의 변수가 있습니다.', 'warning');
+        return;
+      }
 
-    const name = normalizeVariableName(nextVariable.name) || current.name;
-    const duplicate = documentVariables.definition.variables.some((variable, variableIndex) =>
-      variableIndex !== index && variable.name === name
-    );
-    if (duplicate) {
-      alert('이미 같은 이름의 변수가 있습니다.');
-      return false;
+      const nextVariable = normalizeVariableForType({ ...variable, name });
+      const variables = documentVariables.definition.variables.map((item, i) =>
+        i === index ? nextVariable : item
+      );
+      const values = { ...documentVariables.values };
+      if (current.name !== nextVariable.name) {
+        values[nextVariable.name] = values[current.name] ?? evaluateTemplateVariable(nextVariable, values);
+        delete values[current.name];
+      }
+      if (nextVariable.type === 'script' || nextVariable.type === 'ai') {
+        values[nextVariable.name] = evaluateTemplateVariable(nextVariable, values);
+      } else if (!(nextVariable.name in values)) {
+        values[nextVariable.name] = evaluateTemplateVariable(nextVariable, values);
+      }
+
+      updateDocumentVariables({
+        ...documentVariables,
+        definition: {
+          ...documentVariables.definition,
+          variables,
+        },
+        values,
+      });
+      setEditingVariable(null);
+    } else {
+      // 신규 추가인 경우
+      const duplicate = documentVariables.definition.variables.some((v) => v.name === variable.name);
+      if (duplicate) {
+        showAlert('중복', '이미 같은 이름의 변수가 있습니다.', 'warning');
+        return;
+      }
+
+      const nextVariable = normalizeVariableForType(variable);
+      const nextVariables = [...documentVariables.definition.variables, nextVariable];
+      const nextValues = {
+        ...documentVariables.values,
+        [nextVariable.name]: evaluateTemplateVariable(nextVariable, documentVariables.values),
+      };
+
+      updateDocumentVariables({
+        ...documentVariables,
+        definition: {
+          ...documentVariables.definition,
+          variables: nextVariables,
+        },
+        values: nextValues,
+      });
     }
+  }
 
-    const variable = normalizeVariableForType({ ...nextVariable, name });
-    const variables = documentVariables.definition.variables.map((item, variableIndex) =>
-      variableIndex === index ? variable : item
-    );
-    const values = { ...documentVariables.values };
-    if (current.name !== variable.name) {
-      values[variable.name] = values[current.name] ?? evaluateTemplateVariable(variable, values);
-      delete values[current.name];
-    }
-    if (variable.type === 'script' || variable.type === 'ai') {
-      values[variable.name] = evaluateTemplateVariable(variable, values);
-    } else if (!(variable.name in values)) {
-      values[variable.name] = evaluateTemplateVariable(variable, values);
-    }
-
-    updateDocumentVariables({
-      ...documentVariables,
-      definition: {
-        ...documentVariables.definition,
-        variables,
-      },
-      values,
-    });
-    return true;
+  function handleStartEdit(index: number, variable: AdvancedTemplateVariable) {
+    setEditingVariable({ index, variable });
+    setIsVariableModalOpen(true);
   }
 
   function handleDeleteVariable(index: number) {
     if (!documentVariables) return;
     const variable = documentVariables.definition.variables[index];
     if (!variable) return;
-    if (!confirm(`"${variable.label || variable.name}" 변수를 삭제할까요?`)) return;
-
-    const values = { ...documentVariables.values };
-    delete values[variable.name];
-    updateDocumentVariables({
-      ...documentVariables,
-      definition: {
-        ...documentVariables.definition,
-        variables: documentVariables.definition.variables.filter((_, variableIndex) => variableIndex !== index),
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: '변수 삭제',
+      message: `"${variable.label || variable.name}" 변수를 삭제할까요?`,
+      onConfirm: () => {
+        const values = { ...documentVariables.values };
+        delete values[variable.name];
+        updateDocumentVariables({
+          ...documentVariables,
+          definition: {
+            ...documentVariables.definition,
+            variables: documentVariables.definition.variables.filter((_, variableIndex) => variableIndex !== index),
+          },
+          values,
+        });
       },
-      values,
     });
   }
 
@@ -295,10 +309,18 @@ export default function DocumentVariablesPanel() {
 
   function handleSaveProfile() {
     if (!documentVariables) return;
-    const name = window.prompt('문서 변수 프리셋 이름을 입력하세요.', documentVariables.sourceName || '문서 변수 프리셋');
-    if (!name?.trim()) return;
-    const profile = saveDocumentVariableProfile(documentVariables, name.trim());
-    updateDocumentVariables(profile.state);
+    
+    setPromptDialog({
+      isOpen: true,
+      title: '프리셋 저장',
+      message: '문서 변수 프리셋 이름을 입력하세요.',
+      defaultValue: documentVariables.sourceName || '문서 변수 프리셋',
+      onConfirm: (name) => {
+        if (!name?.trim()) return;
+        const profile = saveDocumentVariableProfile(documentVariables, name.trim());
+        updateDocumentVariables(profile.state);
+      },
+    });
   }
 
   function handleSelectProfile(profileId: string) {
@@ -319,7 +341,7 @@ export default function DocumentVariablesPanel() {
       updateDocumentVariables(createDocumentVariablesState(preset.id, preset.name, definition));
     } catch (error) {
       console.error('[document-variables] 기본 프리셋 로드 실패:', error);
-      alert('기본 프리셋을 불러오지 못했습니다.');
+      showAlert('오류', '기본 프리셋을 불러오지 못했습니다.', 'error');
     }
   }
 
@@ -336,8 +358,15 @@ export default function DocumentVariablesPanel() {
     if (!documentVariables) return;
     const profile = variableProfiles.find((item) => item.id === documentVariables.sourceId);
     if (!profile) return;
-    if (!confirm(`"${profile.name}" 문서 변수 프리셋을 삭제할까요?`)) return;
-    deleteDocumentVariableProfile(profile.id);
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: '프리셋 삭제',
+      message: `"${profile.name}" 문서 변수 프리셋을 삭제할까요?`,
+      onConfirm: () => {
+        deleteDocumentVariableProfile(profile.id);
+      },
+    });
   }
 
   async function handleImportYaml(event: ChangeEvent<HTMLInputElement>) {
@@ -350,7 +379,7 @@ export default function DocumentVariablesPanel() {
       updateDocumentVariables(createDocumentVariablesState(`import:${file.name}`, file.name, definition));
     } catch (error) {
       console.error('[document-variables] YAML 가져오기 실패:', error);
-      alert('문서 변수 YAML을 가져오지 못했습니다.');
+      showAlert('오류', '문서 변수 YAML을 가져오지 못했습니다.', 'error');
     }
   }
 
@@ -373,7 +402,7 @@ export default function DocumentVariablesPanel() {
   async function handleApply() {
     if (!documentVariables || isApplying) return;
     if (!isEditorReady) {
-      alert('에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.');
+      showAlert('알림', '에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.', 'warning');
       return;
     }
 
@@ -412,9 +441,9 @@ export default function DocumentVariablesPanel() {
       }
     } catch (error) {
       console.error('[document-variables] 변수 적용 실패:', error);
-      alert(error instanceof UserFacingAiError
+      showAlert('오류', error instanceof UserFacingAiError
         ? error.message
-        : '문서 변수를 적용하는 중 오류가 발생했습니다.');
+        : '문서 변수를 적용하는 중 오류가 발생했습니다.', 'error');
     } finally {
       setGeneratingVariableName(null);
       setIsApplying(false);
@@ -448,7 +477,7 @@ export default function DocumentVariablesPanel() {
 
   async function handleInsertVariable(variable: AdvancedTemplateVariable, value: string) {
     if (!isEditorReady) {
-      alert('에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.');
+      showAlert('알림', '에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.', 'warning');
       return;
     }
     if (generatingVariableName) return;
@@ -464,9 +493,9 @@ export default function DocumentVariablesPanel() {
       await rhwpActions.insertText(value);
     } catch (error) {
       console.error('[document-variables] 변수 삽입 실패:', error);
-      alert(error instanceof UserFacingAiError
+      showAlert('오류', error instanceof UserFacingAiError
         ? error.message
-        : '문서 변수를 삽입하는 중 오류가 발생했습니다.');
+        : '문서 변수를 삽입하는 중 오류가 발생했습니다.', 'error');
     } finally {
       if (variable.type === 'ai') {
         setGeneratingVariableName(null);
@@ -733,7 +762,6 @@ export default function DocumentVariablesPanel() {
                           folder.items.map(({ variable, index }) => (
                             <DocumentVariableInput
                               key={index}
-                              index={index}
                               variable={variable}
                               value={documentVariables.values[variable.name] ?? ''}
                               options={resolveTemplateVariableOptions(variable, documentVariables.values)}
@@ -743,7 +771,7 @@ export default function DocumentVariablesPanel() {
                                 stripThinkTags(documentVariables.values[variable.name] ?? '')
                               )}
                               onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
-                              onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                              onEdit={() => handleStartEdit(index, variable)}
                               onDelete={() => handleDeleteVariable(index)}
                             />
                           ))
@@ -775,6 +803,52 @@ export default function DocumentVariablesPanel() {
           {isApplying ? '적용 중...' : aiCount > 0 ? 'AI 생성 후 변수 적용' : '변수 적용'}
         </button>
       </div>
+
+      {/* 다이얼로그 컴포넌트들 */}
+      <Dialog
+        isOpen={alertDialog.isOpen}
+        onClose={() => setAlertDialog({ ...alertDialog, isOpen: false })}
+        title={alertDialog.title}
+        type={alertDialog.type}
+      >
+        {alertDialog.message.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+      </Dialog>
+
+      <Dialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        title={confirmDialog.title}
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        confirmText="확인"
+        type="warning"
+      >
+        {confirmDialog.message.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+      </Dialog>
+
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        onClose={() => setPromptDialog({ ...promptDialog, isOpen: false })}
+        title={promptDialog.title}
+        message={promptDialog.message}
+        defaultValue={promptDialog.defaultValue}
+        placeholder="이름 입력"
+        onConfirm={promptDialog.onConfirm}
+      />
+
+      <VariableEditModal
+        isOpen={isVariableModalOpen}
+        onClose={() => {
+          setIsVariableModalOpen(false);
+          setEditingVariable(null);
+        }}
+        onSave={handleSaveVariable}
+        folders={documentVariables?.definition.folders || [DEFAULT_VARIABLE_FOLDER]}
+        initialVariable={editingVariable?.variable}
+        title={editingVariable ? '변수 수정' : '변수 추가'}
+      />
     </div>
   );
 }
@@ -1002,9 +1076,9 @@ function EmptyState({
                 ))}
               </optgroup>
             )}
-            {profiles.length > 0 && (
+            {variableProfiles.length > 0 && (
               <optgroup label="내 프리셋">
-                {profiles.map((profile) => (
+                {variableProfiles.map((profile) => (
                   <option key={profile.id} value={profile.id}>
                     {profile.name}
                   </option>
@@ -1025,46 +1099,25 @@ function EmptyState({
 }
 
 function DocumentVariableInput({
-  index,
   variable,
   value,
   options,
   isGenerating,
   onInsert,
   onChange,
-  onUpdate,
+  onEdit,
   onDelete,
 }: {
-  index: number;
   variable: AdvancedTemplateVariable;
   value: string;
   options: string[];
   isGenerating: boolean;
   onInsert: () => void;
   onChange: (value: string) => void;
-  onUpdate: (variable: AdvancedTemplateVariable) => boolean;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const typeMeta = getVariableTypeMeta(variable.type);
-  const [isEditing, setIsEditing] = useState(false);
-  const [draftVariable, setDraftVariable] = useState(variable);
-
-  function startEditing() {
-    setDraftVariable(variable);
-    setIsEditing(true);
-  }
-
-  function cancelEditing() {
-    setDraftVariable(variable);
-    setIsEditing(false);
-  }
-
-  function saveEditing() {
-    const saved = onUpdate(draftVariable);
-    if (saved) {
-      setIsEditing(false);
-    }
-  }
 
   return (
     <div
@@ -1102,36 +1155,16 @@ function DocumentVariableInput({
         <code className="flex-shrink-0 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
           {'{{'}{variable.name}{'}}'}
         </code>
-        {isEditing ? (
-          <>
-            <VariableIconButton title="편집 저장" onClick={saveEditing} tone="success">
-              <path d="M20 6 9 17l-5-5" />
-            </VariableIconButton>
-            <VariableIconButton title="편집 취소" onClick={cancelEditing} danger>
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </VariableIconButton>
-          </>
-        ) : (
-          <VariableIconButton title="변수 편집" onClick={startEditing}>
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-          </VariableIconButton>
-        )}
+        <VariableIconButton title="변수 편집" onClick={onEdit}>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </VariableIconButton>
         <VariableIconButton title="변수 삭제" onClick={onDelete} danger>
           <path d="M3 6h18" />
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
           <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
         </VariableIconButton>
       </div>
-
-      {isEditing && (
-        <VariableDefinitionEditor
-          index={index}
-          variable={draftVariable}
-          onUpdate={setDraftVariable}
-        />
-      )}
 
       {variable.type === 'select' ? (
         <select
@@ -1232,169 +1265,6 @@ function VariableIconButton({
         {children}
       </svg>
     </button>
-  );
-}
-
-function VariableDefinitionEditor({
-  index,
-  variable,
-  onUpdate,
-}: {
-  index: number;
-  variable: AdvancedTemplateVariable;
-  onUpdate: (variable: AdvancedTemplateVariable) => void;
-}) {
-  function updateField<K extends keyof AdvancedTemplateVariable>(field: K, value: AdvancedTemplateVariable[K]) {
-    onUpdate({ ...variable, [field]: value });
-  }
-
-  function updateType(type: AdvancedTemplateVariableType) {
-    onUpdate(normalizeVariableForType({
-      ...variable,
-      type,
-      defaultValue: type === 'select' ? variable.defaultValue || variable.options[0] || '' : variable.defaultValue,
-    }));
-  }
-
-  return (
-    <div
-      className="space-y-2 rounded-md border p-2"
-      style={{
-        borderColor: 'var(--color-bg-border)',
-        background: 'var(--color-bg-surface)',
-      }}
-    >
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block space-y-1">
-          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            변수명
-          </span>
-          <input
-            value={variable.name}
-            onChange={(event) => updateField('name', event.target.value)}
-            className="input py-1.5"
-            placeholder={`variable${index + 1}`}
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            타입
-          </span>
-          <select
-            value={variable.type}
-            onChange={(event) => updateType(event.target.value as AdvancedTemplateVariableType)}
-            className="input py-1.5"
-          >
-            <option value="text">텍스트</option>
-            <option value="select">선택</option>
-            <option value="script">스크립트</option>
-            <option value="ai">AI</option>
-          </select>
-        </label>
-      </div>
-
-      <label className="block space-y-1">
-        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-          라벨
-        </span>
-        <input
-          value={variable.label}
-          onChange={(event) => updateField('label', event.target.value)}
-          className="input py-1.5"
-          placeholder="사이드바에 표시할 이름"
-        />
-      </label>
-
-      <label className="block space-y-1">
-        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-          폴더
-        </span>
-        <input
-          value={variable.folder || ''}
-          onChange={(event) => updateField('folder', event.target.value)}
-          className="input py-1.5"
-          placeholder={DEFAULT_VARIABLE_FOLDER}
-        />
-      </label>
-
-      <label className="block space-y-1">
-        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-          설명
-        </span>
-        <textarea
-          value={variable.description || ''}
-          onChange={(event) => updateField('description', event.target.value)}
-          className="input min-h-14 resize-y py-1.5"
-          placeholder="변수 설명"
-        />
-      </label>
-
-      {variable.type === 'select' ? (
-        <>
-          <label className="block space-y-1">
-            <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-              기본값
-            </span>
-            <input
-              value={variable.defaultValue}
-              onChange={(event) => updateField('defaultValue', event.target.value)}
-              className="input py-1.5"
-              placeholder="선택지 중 기본값"
-            />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-              선택지
-            </span>
-            <textarea
-              value={variable.options.join('\n')}
-              onChange={(event) => updateField(
-                'options',
-                event.target.value.split('\n').map((option) => option.trim()).filter(Boolean)
-              )}
-              className="input min-h-20 resize-y py-1.5"
-              placeholder={'한 줄에 하나씩 입력\n예: 기획팀'}
-            />
-          </label>
-        </>
-      ) : variable.type === 'script' ? (
-        <label className="block space-y-1">
-          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            스크립트
-          </span>
-          <textarea
-            value={variable.script || ''}
-            onChange={(event) => updateField('script', event.target.value)}
-            className="input min-h-20 resize-y py-1.5 font-mono"
-            placeholder={'date("yyyy-MM-dd")\nnumber(value("amount")) * 1.1'}
-          />
-        </label>
-      ) : variable.type === 'ai' ? (
-        <label className="block space-y-1">
-          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            AI 프롬프트
-          </span>
-          <textarea
-            value={variable.prompt || variable.defaultValue}
-            onChange={(event) => updateField('prompt', event.target.value)}
-            className="input min-h-24 resize-y py-1.5"
-            placeholder="AI에 전달할 프롬프트"
-          />
-        </label>
-      ) : (
-        <label className="block space-y-1">
-          <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            기본값
-          </span>
-          <input
-            value={variable.defaultValue}
-            onChange={(event) => updateField('defaultValue', event.target.value)}
-            className="input py-1.5"
-            placeholder="기본 입력값"
-          />
-        </label>
-      )}
-    </div>
   );
 }
 

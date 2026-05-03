@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, type ChangeEvent, type ReactNode } from 'react';
 import { rhwpActions, subscribeEditor } from '@/lib/rhwp/loader';
 import { extractTemplatePreviewObjectUrl } from '@/lib/templates/preview';
+import Dialog from '@/components/ui/Dialog';
+import PromptDialog from '@/components/ui/PromptDialog';
 
 interface Template {
   id: string;
@@ -109,6 +111,25 @@ export default function TemplatePanel() {
   const userPreviewUrlsRef = useRef<string[]>([]);
   const uploadTargetFolderRef = useRef(DEFAULT_USER_TEMPLATE_FOLDER);
 
+  // 다이얼로그 상태
+  const [alertDialog, setAlertDialog] = useState<{ isOpen: boolean; title: string; message: string; type?: 'info' | 'warning' | 'error' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [promptDialog, setPromptDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: (value: string) => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   const builtinFolders = createTemplateFolders(builtinTemplates, DEFAULT_TEMPLATE_FOLDER);
   const userFolders = createUserTemplateFolders(myTemplates, myFolders);
 
@@ -135,22 +156,38 @@ export default function TemplatePanel() {
     };
   }, []);
 
+  function showAlert(title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') {
+    setAlertDialog({ isOpen: true, title, message, type });
+  }
+
   async function handleSelect(template: Template) {
     if (loadingId) return;
     if (!isEditorReady) {
-      alert('에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.');
+      showAlert('알림', '에디터가 아직 준비되지 않았습니다. 잠시만 기다려주세요.', 'warning');
       return;
     }
 
     try {
       const currentDocument = await rhwpActions.readDocument();
       if (hasDocumentContent(currentDocument.text)) {
-        const confirmed = window.confirm(
-          '현재 문서 내용이 있습니다.\n\n템플릿을 불러오면 저장하지 않은 내용이 사라질 수 있습니다. 계속할까요?'
-        );
-        if (!confirmed) return;
+        setConfirmDialog({
+          isOpen: true,
+          title: '템플릿 불러오기',
+          message: '현재 문서 내용이 있습니다.\n\n템플릿을 불러오면 저장하지 않은 내용이 사라질 수 있습니다. 계속할까요?',
+          onConfirm: () => loadTemplate(template),
+        });
+        return;
       }
 
+      await loadTemplate(template);
+    } catch (err) {
+      console.error('[template] 로드 에러:', err);
+      showAlert('오류', '템플릿을 불러오는 중 오류가 발생했습니다.', 'error');
+    }
+  }
+
+  async function loadTemplate(template: Template) {
+    try {
       setLoadingId(template.id);
       setActiveId(template.id);
 
@@ -160,8 +197,6 @@ export default function TemplatePanel() {
         if (!res.ok) throw new Error('파일을 불러올 수 없습니다.');
         buffer = await res.arrayBuffer();
       } else if (template.data) {
-        // base64 등을 다시 buffer로 변환하는 로직 필요할 수 있음
-        // 여기서는 일단 direct 로직만 간단히 구현
         buffer = template.data;
       } else {
         throw new Error('데이터가 없습니다.');
@@ -171,24 +206,30 @@ export default function TemplatePanel() {
       console.log('[template] 로드 완료:', template.name);
     } catch (err) {
       console.error('[template] 로드 에러:', err);
-      alert('템플릿을 불러오는 중 오류가 발생했습니다.');
+      showAlert('오류', '템플릿을 불러오는 중 오류가 발생했습니다.', 'error');
     } finally {
       setLoadingId(null);
     }
   }
 
   function handleAddFolder() {
-    const name = window.prompt('추가할 템플릿 폴더 이름을 입력하세요.');
-    const folderName = normalizeUserFolderName(name || '');
-    if (!folderName) return;
+    setPromptDialog({
+      isOpen: true,
+      title: '폴더 추가',
+      message: '추가할 템플릿 폴더 이름을 입력하세요.',
+      onConfirm: (name) => {
+        const folderName = normalizeUserFolderName(name || '');
+        if (!folderName) return;
 
-    const nextFolders = normalizeFolderNames([...myFolders, folderName]);
-    setMyFolders(nextFolders);
-    saveMyTemplateFolders(nextFolders);
-    setCollapsedFolders((current) => {
-      const next = new Set(current);
-      next.delete(`user:${folderName}`);
-      return next;
+        const nextFolders = normalizeFolderNames([...myFolders, folderName]);
+        setMyFolders(nextFolders);
+        saveMyTemplateFolders(nextFolders);
+        setCollapsedFolders((current) => {
+          const next = new Set(current);
+          next.delete(`user:${folderName}`);
+          return next;
+        });
+      },
     });
   }
 
@@ -370,6 +411,39 @@ export default function TemplatePanel() {
           </div>
         </TemplateSection>
       </div>
+
+      {/* 다이얼로그 컴포넌트들 */}
+      <Dialog
+        isOpen={alertDialog.isOpen}
+        onClose={() => setAlertDialog({ ...alertDialog, isOpen: false })}
+        title={alertDialog.title}
+        type={alertDialog.type}
+      >
+        {alertDialog.message.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+      </Dialog>
+
+      <Dialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        title={confirmDialog.title}
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        confirmText="불러오기"
+        type="warning"
+      >
+        {confirmDialog.message.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+      </Dialog>
+
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        onClose={() => setPromptDialog({ ...promptDialog, isOpen: false })}
+        title={promptDialog.title}
+        message={promptDialog.message}
+        placeholder="폴더 이름"
+        onConfirm={promptDialog.onConfirm}
+      />
     </div>
   );
 }

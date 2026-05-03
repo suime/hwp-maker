@@ -26,6 +26,8 @@ import {
 import AttachButton from './AttachButton';
 import AttachmentPreview from './AttachmentPreview';
 import ChatSessionModal from './ChatSessionModal';
+import Dialog from '@/components/ui/Dialog';
+import PromptDialog from '@/components/ui/PromptDialog';
 
 const WELCOME_ID = 'welcome';
 const WELCOME_TEXT = '안녕하세요! hwp-maker AI 어시스턴트입니다.\n\n문서에 넣고 싶은 내용을 자연어로 입력하거나, 📎 버튼으로 참고 파일을 첨부해 보세요.\n예: "첨부한 보고서를 바탕으로 회의록을 작성해줘"';
@@ -351,6 +353,20 @@ export default function ChatPanel() {
   const [requiresSessionChoice, setRequiresSessionChoice] = useState(false);
   const [isPreparingMessage, setIsPreparingMessage] = useState(false);
 
+  // 다이얼로그 상태
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [promptDialog, setPromptDialog] = useState<{ isOpen: boolean; title: string; message: string; defaultValue?: string; onConfirm: (value: string) => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   const [input, setInput] = useState('');
   const [currentConfig, setCurrentConfig] = useState(() => loadAiConfig());
   const [documentVariableSystemPrompt, setDocumentVariableSystemPrompt] = useState(
@@ -493,29 +509,40 @@ export default function ChatPanel() {
     if (!currentSessionId) return;
 
     const currentSession = sessionSummaries.find((session) => session.id === currentSessionId);
-    const nextTitle = window.prompt('세션 이름을 입력하세요.', currentSession?.title || '새 세션');
-    if (nextTitle === null) return;
-
-    renameSession(currentSessionId, nextTitle.trim() || '제목 없음');
-    refreshSessionSummaries();
+    
+    setPromptDialog({
+      isOpen: true,
+      title: '세션 이름 변경',
+      message: '세션 이름을 입력하세요.',
+      defaultValue: currentSession?.title || '새 세션',
+      onConfirm: (nextTitle) => {
+        renameSession(currentSessionId, nextTitle.trim() || '제목 없음');
+        refreshSessionSummaries();
+      },
+    });
   }, [currentSessionId, refreshSessionSummaries, sessionSummaries]);
 
   const handleDeleteCurrentSession = useCallback(() => {
     if (!currentSessionId) return;
 
     const currentSession = sessionSummaries.find((session) => session.id === currentSessionId);
-    const confirmed = window.confirm(`"${currentSession?.title || '현재 세션'}" 세션을 삭제할까요?`);
-    if (!confirmed) return;
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: '세션 삭제',
+      message: `"${currentSession?.title || '현재 세션'}" 세션을 삭제할까요?`,
+      onConfirm: () => {
+        deleteSession(currentSessionId);
+        const remainingSessions = getSessionList();
+        setSessionSummaries(remainingSessions);
 
-    deleteSession(currentSessionId);
-    const remainingSessions = getSessionList();
-    setSessionSummaries(remainingSessions);
-
-    if (remainingSessions.length > 0) {
-      restoreSession(remainingSessions[0].id);
-    } else {
-      startNewSession();
-    }
+        if (remainingSessions.length > 0) {
+          restoreSession(remainingSessions[0].id);
+        } else {
+          startNewSession();
+        }
+      },
+    });
   }, [currentSessionId, restoreSession, sessionSummaries, startNewSession]);
 
   const isLoading = status === 'submitted' || status === 'streaming' || isPreparingMessage;
@@ -985,6 +1012,31 @@ export default function ChatPanel() {
           </button>
         </div>
       </form>
+
+      {/* 다이얼로그 컴포넌트들 */}
+      <Dialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        title={confirmDialog.title}
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        confirmText="삭제"
+        type="error"
+      >
+        {confirmDialog.message}
+      </Dialog>
+
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        onClose={() => setPromptDialog({ ...promptDialog, isOpen: false })}
+        title={promptDialog.title}
+        message={promptDialog.message}
+        defaultValue={promptDialog.defaultValue}
+        placeholder="세션 이름"
+        onConfirm={promptDialog.onConfirm}
+      />
     </div>
   );
 }
