@@ -1,17 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { setEditorInstance, RhwpDocumentContext, RhwpEditorInstance, RhwpField } from '@/lib/rhwp/loader';
+import { setEditorInstance, RhwpEditorInstance } from '@/lib/rhwp/loader';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 const STUDIO_URL = '/rhwp-studio/index.html';
-let rhwpRequestId = 0;
 
-type RhwpEmbeddedEditor = {
+/**
+ * @rhwp/editor RhwpEditor 인스턴스 — 타입 정의에 없는 내부 메서드 포함.
+ * 번들은 rhwp-request 프로토콜을 완전히 구현하므로 _request()로 모든 커맨드를 전달합니다.
+ */
+type RhwpEditorInternal = {
   element: HTMLIFrameElement;
   loadFile: (data: ArrayBuffer | Uint8Array, fileName?: string) => Promise<{ pageCount: number }>;
   destroy: () => void;
+  /** 패키지 내부 postMessage 송수신 헬퍼 (공개 타입에는 없음) */
+  _request: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
 };
 
 type ExportFileResult = {
@@ -29,10 +34,10 @@ export default function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setLoadState] = useState<LoadState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  
+
   // Strict Mode 이중 실행 방지 및 인스턴스 참조 보관
   const initGuard = useRef(false);
-  const editorRef = useRef<RhwpEmbeddedEditor | null>(null);
+  const editorRef = useRef<RhwpEditorInternal | null>(null);
 
   useEffect(() => {
     if (initGuard.current) return;
@@ -60,62 +65,60 @@ export default function PreviewPanel() {
           return;
         }
 
-        editorRef.current = editor as RhwpEmbeddedEditor;
+        const e = editor as unknown as RhwpEditorInternal;
+        editorRef.current = e;
 
-        const request = <T,>(method: string, params: Record<string, unknown> = {}) => {
-          const iframe = (editor as RhwpEmbeddedEditor).element;
-          const target = iframe.contentWindow;
-
-          if (!target) {
-            return Promise.reject(new Error('에디터 iframe이 준비되지 않았습니다.'));
-          }
-
-          return new Promise<T>((resolve, reject) => {
-            const id = `hwp-maker:${++rhwpRequestId}`;
-            const timeout = window.setTimeout(() => {
-              window.removeEventListener('message', handleMessage);
-              reject(new Error(`rhwp 요청 시간이 초과되었습니다: ${method}`));
-            }, 10000);
-
-            const handleMessage = (event: MessageEvent) => {
-              if (event.source !== target) return;
-              const data = event.data;
-              if (!data || data.type !== 'rhwp-response' || data.id !== id) return;
-
-              window.clearTimeout(timeout);
-              window.removeEventListener('message', handleMessage);
-
-              if (data.error) {
-                reject(new Error(String(data.error)));
-              } else {
-                resolve(data.result as T);
-              }
-            };
-
-            window.addEventListener('message', handleMessage);
-            target.postMessage({ type: 'rhwp-request', id, method, params }, window.location.origin);
-          });
-        };
-
-        // RhwpEditorInstance 인터페이스에 맞게 래핑하여 등록
+        /**
+         * rhwp-studio 번들이 구현한 메시지 프로토콜 전체를 연결합니다.
+         * 패키지 내부의 _request()가 { type:'rhwp-request', id, method, params }를
+         * iframe으로 보내고 { type:'rhwp-response', id, result/error }를 수신합니다.
+         *
+         * 번들 switch 케이스 (index-BLKwf-s7.js 기준):
+         *   loadFile, pageCount, getPageSvg, ready, getDocumentText,
+         *   getFieldList, getDocumentInfo, setFieldValue, setFieldValueByName,
+         *   replaceAll, replaceText, insertText, pasteHtml, exportHwp, exportFile
+         */
         const wrappedInstance: RhwpEditorInstance = {
-          readDocument: async () => request<RhwpDocumentContext>('getDocumentText'),
-          getFieldList: async () => request<RhwpField[]>('getFieldList'),
-          setFieldValueByName: async (name, value) =>
-            request('setFieldValueByName', { name, value }),
-          replaceAll: async (query, text, caseSensitive = false) =>
-            request('replaceAll', { query, text, caseSensitive }),
-          insertText: async (text, position) =>
-            request('insertText', { text, ...(position ?? { atCursor: true }) }),
+          // 문서 컨텍스트 전체 읽기
+          readDocument: () => e._request('getDocumentText'),
+
+          // 필드 목록 조회
+          getFieldList: () => e._request('getFieldList'),
+
+          // 이름 기반 필드 값 설정
+          setFieldValueByName: (name, value) =>
+            e._request('setFieldValueByName', { name, value }),
+
+          // 문서 전체 텍스트 치환
+          replaceAll: (query, text, caseSensitive = false) =>
+            e._request('replaceAll', { query, text, caseSensitive }),
+
+          // 텍스트 삽입 (position 없으면 캐럿 위치에 삽입)
+          insertText: (text, position) =>
+            e._request('insertText', {
+              text,
+              ...(position
+                ? {
+                    sectionIndex: position.sectionIndex,
+                    paragraphIndex: position.paragraphIndex,
+                    charOffset: position.charOffset,
+                  }
+                : { atCursor: true }),
+            }),
+
+          // 파일 내보내기 (hwp / hwpx)
           export: async (format) => {
-            const result = await request<ExportFileResult>('exportFile', { format });
+            const result = await e._request<ExportFileResult>('exportFile', { format });
             return new Blob([new Uint8Array(result.data)], { type: result.mimeType });
           },
+
+          // 파일 로드 — 패키지의 loadFile() 직접 사용
           load: async (data, fileName) => {
-            // @rhwp/editor 패키지 명세 확인 결과 메서드명이 loadFile 임
             const buffer = data instanceof Blob ? await data.arrayBuffer() : data;
-            await (editor as RhwpEmbeddedEditor).loadFile(buffer, toRhwpSafeFileName(fileName));
+            await e.loadFile(buffer, toRhwpSafeFileName(fileName));
           },
+
+          // 에디터 리소스 해제
           destroy: () => editor.destroy(),
         };
 
@@ -131,8 +134,7 @@ export default function PreviewPanel() {
 
     return () => {
       alive = false;
-      // ✅ React Strict Mode double-invoke 대응: cleanup 시 initGuard 리셋
-      // 이렇게 해야 remount 시 에디터를 다시 초기화할 수 있습니다.
+      // React Strict Mode double-invoke 대응: cleanup 시 initGuard 리셋
       initGuard.current = false;
       if (editorRef.current) {
         editorRef.current.destroy();
@@ -161,7 +163,7 @@ export default function PreviewPanel() {
             <>
               <LoadingSpinner />
               <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                에디터 로딩 중…
+                에디터 로딩 중&hellip;
               </p>
             </>
           ) : (

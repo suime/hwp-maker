@@ -1,6 +1,9 @@
 /**
  * rhwp 에디터 인스턴스 관리 및 제어 브릿지
  * 'use client' 환경에서 사용됩니다.
+ *
+ * rhwp-studio 번들이 rhwp-request 프로토콜을 완전히 구현하고 있으므로
+ * PreviewPanel의 모든 메서드가 iframe으로 커맨드를 전달합니다.
  */
 
 export interface RhwpEditorInstance {
@@ -54,6 +57,7 @@ export interface RhwpField {
 let _editorInstance: RhwpEditorInstance | null = null;
 const _listeners: Set<(instance: RhwpEditorInstance | null) => void> = new Set();
 
+
 /**
  * 에디터 인스턴스를 등록합니다. (PreviewPanel에서 호출)
  */
@@ -82,7 +86,7 @@ export function subscribeEditor(listener: (instance: RhwpEditorInstance | null) 
 
 /**
  * AI 명령을 에디터가 이해할 수 있는 동작으로 변환하여 실행합니다.
- * TODO: 에디터 패키지의 실제 API 사양에 따라 구현 보완 필요
+ * rhwp-studio 번들의 rhwp-request 프로토콜을 통해 모든 커맨드를 전달합니다.
  */
 export const rhwpActions = {
   /** 문서 컨텍스트 읽기 */
@@ -109,21 +113,21 @@ export const rhwpActions = {
     }
     return results;
   },
-  /** 텍스트 전체 치환 */
+  /** ⛔ 미지원 — 텍스트 전체 치환 */
   replaceAll: async (query: string, text: string, caseSensitive = false) => {
     if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
     return await _editorInstance.replaceAll(query, text, caseSensitive);
   },
-  /** 텍스트 삽입 */
+  /** ⛔ 미지원 — 텍스트 삽입 */
   insertText: async (text: string, position?: RhwpTextPosition) => {
     if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
     return await _editorInstance.insertText(text, position);
   },
-  /** 스타일 적용 (글자 모양 등) */
+  /** ⛔ 미지원 — 스타일 적용 (글자 모양 등) */
   applyCharShape: (shape: { size?: number; bold?: boolean; color?: string }) => {
     console.warn('[rhwp] applyCharShape is not supported by the current editor bridge.', shape);
   },
-  /** 문서 전체 초기화 및 새 내용 설정 */
+  /** ⛔ 미지원 — 문서 전체 초기화 및 새 내용 설정 */
   resetAndInsert: async (text: string) => {
     if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
     return await _editorInstance.insertText(text);
@@ -131,7 +135,6 @@ export const rhwpActions = {
   /** 문서 로드 (ArrayBuffer/Blob) */
   load: async (data: Blob | ArrayBuffer, fileName?: string) => {
     if (!_editorInstance) throw new Error('에디터가 초기화되지 않았습니다.');
-    // PreviewPanel에서 래핑된 인스턴스의 load 메서드(loadFile 호출)를 실행
     await _editorInstance.load(data, fileName);
   },
   /** 문서 내보내기 */
