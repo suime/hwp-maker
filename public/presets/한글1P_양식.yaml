@@ -11,6 +11,7 @@ variables:
   department:
     label: 작성 부서
     type: select
+    folder: 기본 정보
     description: 문서에 표시할 작성 부서를 선택합니다.
     default: AI데이터처
     options:
@@ -20,6 +21,7 @@ variables:
   buso:
     label: 작성 부서명
     type: select
+    folder: 기본 정보
     description: 보고서 작성 부서명으로 치환됩니다.
     optionsWhen:
       department:
@@ -38,18 +40,21 @@ variables:
   date:
     label: 작성일
     type: script
+    folder: 기본 정보
     description: 현재 날짜를 한글 문서용 날짜 형식으로 자동 입력합니다.
     script: date("yyyy년 MM월 dd일 (aaa)")
 
   name:
     label: 작성자
     type: text
+    folder: 기본 정보
     description: 보고서 작성자 이름으로 치환됩니다.
     default: 박대현
 
   title:
     label: 제목
     type: ai
+    folder: AI 생성
     description: 작성 부서, 작성일, 작성자를 바탕으로 AI가 생성하는 보고서 제목입니다.
     prompt: |
       아래 정보를 바탕으로 한글 1P 보고서에 어울리는 간결한 제목을 작성하세요.
@@ -64,6 +69,7 @@ variables:
   background1:
     label: 배경
     type: ai
+    folder: AI 생성
     description: 보고서의 배경 정보를 입력합니다.
     prompt: |
       아래 정보를 바탕으로 한글 1P 보고서에 어울리는 배경 내용을 작성하세요.

@@ -20,12 +20,14 @@ variables:
   title:
     label: 문서 제목
     type: text
+    folder: 기본 정보
     description: 문서 상단 제목으로 치환되는 값입니다.
     default: 안전관리 점검 보고
 
   department:
     label: 작성 부서
     type: select
+    folder: 기본 정보
     description: 보고서를 작성하는 담당 부서를 선택합니다.
     options:
       - 안전관리팀
@@ -35,11 +37,13 @@ variables:
   writtenDate:
     label: 작성일
     type: script
+    folder: 기본 정보
     script: date("yyyy-MM-dd")
 
   summary:
     label: 3줄 요약
     type: ai
+    folder: AI 생성
     prompt: |
       문서 제목은 "{{title}}"입니다.
       작성 부서는 "{{department}}"입니다.
@@ -56,6 +60,7 @@ variables:
 추가 기능:
 
 - `document`: 문서 기본 정보 섹션입니다. `author`, `description`, `systemPrompt`를 모아 적을 수 있습니다.
+- `variables.<변수명>.folder`: 프리셋 사이드바에서 변수를 묶을 폴더 이름입니다. 같은 폴더의 변수는 함께 접고 펼 수 있습니다.
 - `variables.<변수명>.description`: 각 변수의 설명 문구입니다. 프리셋 사이드바에서 해당 입력 항목 아래에 표시됩니다.
 - `optionsWhen`: 다른 변수의 값에 따라 `select` 후보를 바꿉니다.
 

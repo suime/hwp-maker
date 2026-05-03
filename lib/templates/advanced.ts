@@ -10,6 +10,7 @@ export interface AdvancedTemplateVariable {
   name: string;
   label: string;
   type: AdvancedTemplateVariableType;
+  folder?: string;
   defaultValue: string;
   options: string[];
   optionRules: AdvancedTemplateOptionRule[];
@@ -23,6 +24,7 @@ export interface AdvancedTemplateDefinition {
   author?: string;
   description?: string;
   systemPrompt?: string;
+  folders?: string[];
   variables: AdvancedTemplateVariable[];
 }
 
@@ -91,12 +93,20 @@ export function serializeAdvancedTemplateYaml(definition: AdvancedTemplateDefini
   appendYamlField(lines, '  ', 'description', definition.description);
   appendYamlField(lines, '  ', 'systemPrompt', definition.systemPrompt);
   lines.push('');
+  if (definition.folders?.length) {
+    lines.push('folders:');
+    for (const folder of definition.folders) {
+      lines.push(`  - ${formatYamlScalar(folder)}`);
+    }
+    lines.push('');
+  }
   lines.push('variables:');
 
   for (const variable of definition.variables) {
     lines.push(`  ${variable.name}:`);
     appendYamlField(lines, '    ', 'label', variable.label);
     lines.push(`    type: ${variable.type}`);
+    appendYamlField(lines, '    ', 'folder', variable.folder);
     appendYamlField(lines, '    ', 'description', variable.description);
 
     if (variable.type === 'select') {
@@ -266,8 +276,10 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
   let author = '';
   let description = '';
   let systemPrompt = '';
+  let folders: string[] = [];
   let inDocumentMeta = false;
   let inVariables = false;
+  let inFolders = false;
   let currentName: string | null = null;
   let currentListKey: string | null = null;
   let blockScalar:
@@ -327,6 +339,7 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
       currentListKey = null;
       optionRuleContext = null;
       inDocumentMeta = false;
+      inFolders = false;
 
       const colonIndex = trimmed.indexOf(':');
       const key = colonIndex >= 0 ? trimmed.slice(0, colonIndex).trim() : trimmed;
@@ -334,18 +347,21 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
 
       if (key === 'document' || key === 'metadata' || key === 'meta') {
         inVariables = false;
+        inFolders = false;
         inDocumentMeta = true;
         continue;
       }
 
       if (key === 'author' || key === 'writer') {
         inVariables = false;
+        inFolders = false;
         author = parseScalar(rawValue);
         continue;
       }
 
       if (key === 'description' || key === 'documentDescription' || key === 'document_description') {
         inVariables = false;
+        inFolders = false;
         if (rawValue === '|' || rawValue === '|-') {
           blockScalar = { key: 'description', indent: 2, lines: [] };
         } else {
@@ -356,6 +372,7 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
 
       if (key === 'systemPrompt' || key === 'system_prompt') {
         inVariables = false;
+        inFolders = false;
         if (rawValue === '|' || rawValue === '|-') {
           blockScalar = { key: 'systemPrompt', indent: 2, lines: [] };
         } else {
@@ -364,6 +381,7 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
         continue;
       }
 
+      inFolders = trimmed === 'folders:';
       inVariables = trimmed === 'variables:';
       continue;
     }
@@ -390,6 +408,12 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
           systemPrompt = parseScalar(rawValue);
         }
       }
+      continue;
+    }
+
+    if (inFolders && indent === 2 && trimmed.startsWith('- ')) {
+      const folder = parseScalar(trimmed.slice(2));
+      if (folder && !folders.includes(folder)) folders = [...folders, folder];
       continue;
     }
 
@@ -432,6 +456,8 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
         variable.label = parseScalar(rawValue);
       } else if (key === 'type') {
         variable.type = parseVariableType(rawValue);
+      } else if (key === 'folder' || key === 'group') {
+        variable.folder = parseScalar(rawValue);
       } else if (key === 'default' || key === 'defaultValue') {
         variable.defaultValue = parseScalar(rawValue);
       } else if (key === 'format') {
@@ -516,6 +542,7 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
     author,
     description,
     systemPrompt,
+    folders,
     variables: Array.from(variables.values()).map((variable) => ({
       name: variable.name || '',
       label: variable.label || variable.name || '',
@@ -524,6 +551,7 @@ export function parseAdvancedTemplateYaml(yaml: string): AdvancedTemplateDefinit
       options: variable.options || [],
       optionRules: variable.optionRules || [],
       format: variable.format,
+      folder: variable.folder,
       script: variable.script,
       prompt: variable.prompt,
       description: variable.description,

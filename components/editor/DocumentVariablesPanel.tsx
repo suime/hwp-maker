@@ -33,12 +33,18 @@ interface BuiltInPreset {
   filePath: string;
 }
 
+const AI_CONFIG_ERROR_MESSAGE = 'AI 설정이 되어 있지 않거나 올바르지 않습니다. 설정에서 AI 프로바이더, API 키, 모델, Base URL을 확인해주세요.';
+const DEFAULT_VARIABLE_FOLDER = '기본';
+
+class UserFacingAiError extends Error {}
+
 export default function DocumentVariablesPanel() {
   const [documentVariables, setDocumentVariables] = useState<ActiveDocumentVariables | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isDocumentInfoCollapsed, setIsDocumentInfoCollapsed] = useState(true);
   const [generatingVariableName, setGeneratingVariableName] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const [builtInPresets, setBuiltInPresets] = useState<BuiltInPreset[]>([]);
   const [variableProfiles, setVariableProfiles] = useState<DocumentVariableProfile[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -112,9 +118,50 @@ export default function DocumentVariablesPanel() {
       author: '',
       description: '',
       systemPrompt: '',
+      folders: [],
       variables: [],
     });
     updateDocumentVariables(next);
+  }
+
+  function getDefaultFolder() {
+    return documentVariables?.definition.folders?.[0] || '';
+  }
+
+  function handleAddFolder() {
+    const name = window.prompt('추가할 폴더 이름을 입력하세요.');
+    const folderName = name?.trim();
+    if (!folderName) return;
+
+    if (!documentVariables) {
+      updateDocumentVariables(createDocumentVariablesState('custom:variables', '사용자 문서 변수', {
+        author: '',
+        description: '',
+        systemPrompt: '',
+        folders: [folderName],
+        variables: [],
+      }));
+      return;
+    }
+
+    const currentFolders = documentVariables.definition.folders || [];
+    if (currentFolders.includes(folderName)) {
+      alert('이미 같은 이름의 폴더가 있습니다.');
+      return;
+    }
+
+    updateDocumentVariables({
+      ...documentVariables,
+      definition: {
+        ...documentVariables.definition,
+        folders: [...currentFolders, folderName],
+      },
+    });
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      next.delete(folderName);
+      return next;
+    });
   }
 
   function createVariableName() {
@@ -135,6 +182,7 @@ export default function DocumentVariablesPanel() {
         name,
         label: '새 변수',
         type: 'text',
+        folder: DEFAULT_VARIABLE_FOLDER,
         defaultValue: '',
         options: [],
         optionRules: [],
@@ -144,6 +192,7 @@ export default function DocumentVariablesPanel() {
         author: '',
         description: '',
         systemPrompt: '',
+        folders: [DEFAULT_VARIABLE_FOLDER],
         variables: [variable],
       }));
       return;
@@ -154,6 +203,7 @@ export default function DocumentVariablesPanel() {
       name,
       label: '새 변수',
       type: 'text',
+      folder: getDefaultFolder(),
       defaultValue: '',
       options: [],
       optionRules: [],
@@ -173,10 +223,10 @@ export default function DocumentVariablesPanel() {
   }
 
   function handleUpdateVariable(index: number, nextVariable: AdvancedTemplateVariable) {
-    if (!documentVariables) return;
+    if (!documentVariables) return false;
 
     const current = documentVariables.definition.variables[index];
-    if (!current) return;
+    if (!current) return false;
 
     const name = normalizeVariableName(nextVariable.name) || current.name;
     const duplicate = documentVariables.definition.variables.some((variable, variableIndex) =>
@@ -184,7 +234,7 @@ export default function DocumentVariablesPanel() {
     );
     if (duplicate) {
       alert('이미 같은 이름의 변수가 있습니다.');
-      return;
+      return false;
     }
 
     const variable = normalizeVariableForType({ ...nextVariable, name });
@@ -210,6 +260,7 @@ export default function DocumentVariablesPanel() {
       },
       values,
     });
+    return true;
   }
 
   function handleDeleteVariable(index: number) {
@@ -349,10 +400,7 @@ export default function DocumentVariablesPanel() {
           }),
         });
 
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`AI 변수 생성 실패 (${res.status}): ${errorText}`);
-        }
+        await throwIfTemplateAiFailed(res);
 
         const data = await res.json() as { text?: string };
         replacementValues[variable.name] = stripThinkTags(data.text || '');
@@ -364,7 +412,9 @@ export default function DocumentVariablesPanel() {
       }
     } catch (error) {
       console.error('[document-variables] 변수 적용 실패:', error);
-      alert('문서 변수를 적용하는 중 오류가 발생했습니다.');
+      alert(error instanceof UserFacingAiError
+        ? error.message
+        : '문서 변수를 적용하는 중 오류가 발생했습니다.');
     } finally {
       setGeneratingVariableName(null);
       setIsApplying(false);
@@ -390,10 +440,7 @@ export default function DocumentVariablesPanel() {
       }),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`AI 변수 생성 실패 (${res.status}): ${errorText}`);
-    }
+    await throwIfTemplateAiFailed(res);
 
     const data = await res.json() as { text?: string };
     return stripThinkTags(data.text || '');
@@ -417,7 +464,9 @@ export default function DocumentVariablesPanel() {
       await rhwpActions.insertText(value);
     } catch (error) {
       console.error('[document-variables] 변수 삽입 실패:', error);
-      alert('문서 변수를 삽입하는 중 오류가 발생했습니다.');
+      alert(error instanceof UserFacingAiError
+        ? error.message
+        : '문서 변수를 삽입하는 중 오류가 발생했습니다.');
     } finally {
       if (variable.type === 'ai') {
         setGeneratingVariableName(null);
@@ -427,12 +476,25 @@ export default function DocumentVariablesPanel() {
 
   const variables = documentVariables?.definition.variables ?? [];
   const aiCount = variables.filter((variable) => variable.type === 'ai').length;
+  const variableFolders = createVariableFolders(documentVariables?.definition.folders || [], variables);
   const selectedPresetId = documentVariables && (
     builtInPresets.some((preset) => preset.id === documentVariables.sourceId)
     || variableProfiles.some((profile) => profile.id === documentVariables.sourceId)
   )
     ? documentVariables.sourceId
     : '';
+
+  function toggleVariableFolder(folderName: string) {
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folderName)) {
+        next.delete(folderName);
+      } else {
+        next.add(folderName);
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="flex h-full flex-col" style={{ background: 'var(--color-bg-panel)' }}>
@@ -445,6 +507,11 @@ export default function DocumentVariablesPanel() {
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-1">
+            <HeaderIconButton title="폴더 추가" onClick={handleAddFolder}>
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+              <path d="M12 10v6" />
+              <path d="M9 13h6" />
+            </HeaderIconButton>
             <HeaderIconButton title="변수 추가" onClick={handleAddVariable}>
               <path d="M12 5v14M5 12h14" />
             </HeaderIconButton>
@@ -587,23 +654,62 @@ export default function DocumentVariablesPanel() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {variables.map((variable, index) => (
-                    <DocumentVariableInput
-                      key={index}
-                      index={index}
-                      variable={variable}
-                      value={documentVariables.values[variable.name] ?? ''}
-                      options={resolveTemplateVariableOptions(variable, documentVariables.values)}
-                      isGenerating={generatingVariableName === variable.name}
-                      onInsert={() => handleInsertVariable(
-                        variable,
-                        stripThinkTags(documentVariables.values[variable.name] ?? '')
-                      )}
-                      onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
-                      onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
-                      onDelete={() => handleDeleteVariable(index)}
-                    />
-                  ))}
+                  {variableFolders.map((folder) => {
+                    const isCollapsed = collapsedFolders.has(folder.name);
+                    return (
+                      <section
+                        key={folder.name}
+                        className="rounded-lg border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)]"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleVariableFolder(folder.name)}
+                          className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
+                          aria-expanded={!isCollapsed}
+                          title={isCollapsed ? `${folder.name} 폴더 펼치기` : `${folder.name} 폴더 접기`}
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }} aria-hidden="true">
+                              {isCollapsed ? '▸' : '▾'}
+                            </span>
+                            <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                              {folder.name}
+                            </span>
+                          </span>
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+                            style={{
+                              background: 'color-mix(in srgb, var(--color-brand) 12%, transparent)',
+                              color: 'var(--color-brand)',
+                            }}
+                          >
+                            {folder.items.length}
+                          </span>
+                        </button>
+                        {!isCollapsed && (
+                          <div className="space-y-2 border-t border-[var(--color-bg-border)] p-2">
+                            {folder.items.map(({ variable, index }) => (
+                              <DocumentVariableInput
+                                key={index}
+                                index={index}
+                                variable={variable}
+                                value={documentVariables.values[variable.name] ?? ''}
+                                options={resolveTemplateVariableOptions(variable, documentVariables.values)}
+                                isGenerating={generatingVariableName === variable.name}
+                                onInsert={() => handleInsertVariable(
+                                  variable,
+                                  stripThinkTags(documentVariables.values[variable.name] ?? '')
+                                )}
+                                onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
+                                onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                                onDelete={() => handleDeleteVariable(index)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })}
                 </div>
               )}
             </PresetSection>
@@ -630,6 +736,29 @@ export default function DocumentVariablesPanel() {
       </div>
     </div>
   );
+}
+
+async function throwIfTemplateAiFailed(res: Response) {
+  if (res.ok) return;
+
+  const errorText = await res.text();
+  if (isLikelyAiConfigError(res.status, errorText)) {
+    throw new UserFacingAiError(AI_CONFIG_ERROR_MESSAGE);
+  }
+
+  throw new Error(`AI 변수 생성 실패 (${res.status}): ${errorText}`);
+}
+
+function isLikelyAiConfigError(status: number, errorText: string) {
+  const normalized = errorText.toLowerCase();
+  return status === 401
+    || status === 403
+    || normalized.includes('forbidden')
+    || normalized.includes('unauthorized')
+    || normalized.includes('invalid api key')
+    || normalized.includes('api key')
+    || normalized.includes('authentication')
+    || normalized.includes('permission');
 }
 
 function normalizeVariableName(name: string) {
@@ -693,6 +822,26 @@ function PresetSectionTitle({ children }: { children: ReactNode }) {
       </p>
     </div>
   );
+}
+
+function getVariableFolderName(variable: AdvancedTemplateVariable) {
+  return variable.folder?.trim() || DEFAULT_VARIABLE_FOLDER;
+}
+
+function createVariableFolders(folderNames: string[], variables: AdvancedTemplateVariable[]) {
+  const folders = new Map<string, Array<{ variable: AdvancedTemplateVariable; index: number }>>();
+
+  for (const folderName of folderNames) {
+    const normalized = folderName.trim();
+    if (normalized) folders.set(normalized, []);
+  }
+
+  variables.forEach((variable, index) => {
+    const folderName = getVariableFolderName(variable);
+    folders.set(folderName, [...(folders.get(folderName) || []), { variable, index }]);
+  });
+
+  return Array.from(folders.entries()).map(([name, items]) => ({ name, items }));
 }
 
 function HeaderIconButton({
@@ -828,11 +977,29 @@ function DocumentVariableInput({
   isGenerating: boolean;
   onInsert: () => void;
   onChange: (value: string) => void;
-  onUpdate: (variable: AdvancedTemplateVariable) => void;
+  onUpdate: (variable: AdvancedTemplateVariable) => boolean;
   onDelete: () => void;
 }) {
   const typeMeta = getVariableTypeMeta(variable.type);
   const [isEditing, setIsEditing] = useState(false);
+  const [draftVariable, setDraftVariable] = useState(variable);
+
+  function startEditing() {
+    setDraftVariable(variable);
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    setDraftVariable(variable);
+    setIsEditing(false);
+  }
+
+  function saveEditing() {
+    const saved = onUpdate(draftVariable);
+    if (saved) {
+      setIsEditing(false);
+    }
+  }
 
   return (
     <div
@@ -870,13 +1037,22 @@ function DocumentVariableInput({
         <code className="flex-shrink-0 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
           {'{{'}{variable.name}{'}}'}
         </code>
-        <VariableIconButton
-          title={isEditing ? '편집 닫기' : '변수 편집'}
-          onClick={() => setIsEditing((value) => !value)}
-        >
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-        </VariableIconButton>
+        {isEditing ? (
+          <>
+            <VariableIconButton title="편집 저장" onClick={saveEditing} tone="success">
+              <path d="M20 6 9 17l-5-5" />
+            </VariableIconButton>
+            <VariableIconButton title="편집 취소" onClick={cancelEditing} danger>
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </VariableIconButton>
+          </>
+        ) : (
+          <VariableIconButton title="변수 편집" onClick={startEditing}>
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+          </VariableIconButton>
+        )}
         <VariableIconButton title="변수 삭제" onClick={onDelete} danger>
           <path d="M3 6h18" />
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
@@ -887,8 +1063,8 @@ function DocumentVariableInput({
       {isEditing && (
         <VariableDefinitionEditor
           index={index}
-          variable={variable}
-          onUpdate={onUpdate}
+          variable={draftVariable}
+          onUpdate={setDraftVariable}
         />
       )}
 
@@ -953,23 +1129,27 @@ function DocumentVariableInput({
 function VariableIconButton({
   title,
   danger,
+  tone,
   onClick,
   children,
 }: {
   title: string;
   danger?: boolean;
+  tone?: 'success';
   onClick: () => void;
   children: ReactNode;
 }) {
+  const className = danger
+    ? 'text-red-500 hover:bg-red-500/10 hover:text-red-600'
+    : tone === 'success'
+      ? 'text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-600'
+      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]';
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] transition-colors ${
-        danger
-          ? 'text-[var(--color-text-muted)] hover:bg-red-500/10 hover:text-red-500'
-          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-surface2)] hover:text-[var(--color-text-primary)]'
-      }`}
+      className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)] transition-colors ${className}`}
       title={title}
       aria-label={title}
     >
@@ -1057,6 +1237,18 @@ function VariableDefinitionEditor({
           onChange={(event) => updateField('label', event.target.value)}
           className="input py-1.5"
           placeholder="사이드바에 표시할 이름"
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          폴더
+        </span>
+        <input
+          value={variable.folder || ''}
+          onChange={(event) => updateField('folder', event.target.value)}
+          className="input py-1.5"
+          placeholder={DEFAULT_VARIABLE_FOLDER}
         />
       </label>
 
