@@ -25,7 +25,7 @@ AI 도움을 받아 한글 HWP/HWPX 문서를 만들고 편집하는 self-hostab
 | Language | TypeScript strict |
 | Styling | Tailwind CSS v4, CSS custom properties |
 | Document editor | `@rhwp/editor`, bundled rhwp studio assets |
-| AI | AI SDK, OpenAI-compatible API, Ollama-compatible endpoint |
+| AI | AI SDK, OpenAI-compatible API, Gemini OpenAI-compatible endpoint, Ollama-compatible endpoint |
 | Persistence | Browser `localStorage` / `sessionStorage` |
 | Deployment | Vercel 또는 self-hosted Next.js |
 
@@ -35,6 +35,7 @@ AI 도움을 받아 한글 HWP/HWPX 문서를 만들고 편집하는 self-hostab
 - rhwp WASM 기반 HWP/HWPX 미리보기 및 편집
 - AI 응답의 `hwp-maker-actions` / `rhwp-actions` 액션 실행
 - OpenAI-compatible API 및 Ollama-compatible endpoint 설정
+- Gemini OpenAI-compatible endpoint 설정
 - AI 프리셋별 시스템 프롬프트 및 문서 변수 저장
 - 채팅 세션 저장, 복원, 이름 변경, 삭제
 - 텍스트/문서/이미지 첨부파일 처리
@@ -95,6 +96,7 @@ npm run dev
 ```env
 OPENAI_API_BASE_URL=https://api.openai.com/v1
 OPENAI_API_KEY=your-api-key
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 앱 안의 AI 설정 모달에서도 Base URL, API Key, 모델명을 지정할 수 있습니다. 기본 설정은 Ollama 호환 로컬 endpoint입니다.
@@ -102,6 +104,13 @@ OPENAI_API_KEY=your-api-key
 ```text
 Base URL: http://localhost:11434/v1
 Model: llama3
+```
+
+Gemini를 사용할 때 앱 설정에서 Provider를 `Gemini`로 선택하면 기본값은 다음과 같습니다.
+
+```text
+Base URL: https://generativelanguage.googleapis.com/v1beta/openai
+Model: gemini-2.5-flash
 ```
 
 브라우저에 저장되는 API 설정은 서버에 별도 저장되지 않습니다.

@@ -647,78 +647,113 @@ export default function DocumentVariablesPanel() {
               </div>
             </PresetSection>
 
-            <PresetSection title="문서 변수">
-              {variables.length === 0 ? (
+            {variables.length === 0 ? (
+              <PresetSection title="문서 변수">
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   정의된 문서 변수가 없습니다.
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {variableFolders.map((folder) => {
-                    const isCollapsed = collapsedFolders.has(folder.name);
-                    return (
-                      <section
-                        key={folder.name}
-                        className="rounded-lg border border-[var(--color-bg-border)] bg-[var(--color-bg-surface)]"
+              </PresetSection>
+            ) : (
+              variableFolders.map((folder, folderIndex) => {
+                const isCollapsed = collapsedFolders.has(folder.name);
+                const accentColor = getVariableFolderAccent(folderIndex);
+                const typeCounts = getVariableTypeCounts(folder.items);
+                return (
+                  <section
+                    key={folder.name}
+                    className="overflow-hidden rounded-lg border border-l-4 shadow-sm"
+                    style={{
+                      borderColor: 'var(--color-bg-border)',
+                      borderLeftColor: accentColor,
+                      background: 'var(--color-bg-base)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleVariableFolder(folder.name)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-bg-surface)]"
+                      style={{
+                        background: `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 12%, transparent), transparent 72%)`,
+                      }}
+                      aria-expanded={!isCollapsed}
+                      title={isCollapsed ? `${folder.name} 폴더 펼치기` : `${folder.name} 폴더 접기`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md" style={{ color: accentColor, background: `color-mix(in srgb, ${accentColor} 13%, transparent)` }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+                          </svg>
+                        </span>
+                        <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }} aria-hidden="true">
+                          {isCollapsed ? '▸' : '▾'}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                            {folder.name}
+                          </span>
+                          <span className="mt-0.5 flex flex-wrap gap-1">
+                            {typeCounts.map((item) => (
+                              <span
+                                key={item.type}
+                                className="rounded px-1 py-0.5 text-[9px] font-medium leading-none"
+                                style={{
+                                  color: item.color,
+                                  background: `color-mix(in srgb, ${item.color} 10%, transparent)`,
+                                }}
+                              >
+                                {item.label} {item.count}
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      </span>
+                      <span
+                        className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+                        style={{
+                          background: `color-mix(in srgb, ${accentColor} 16%, transparent)`,
+                          color: accentColor,
+                        }}
                       >
-                        <button
-                          type="button"
-                          onClick={() => toggleVariableFolder(folder.name)}
-                          className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left"
-                          aria-expanded={!isCollapsed}
-                          title={isCollapsed ? `${folder.name} 폴더 펼치기` : `${folder.name} 폴더 접기`}
-                        >
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }} aria-hidden="true">
-                              {isCollapsed ? '▸' : '▾'}
-                            </span>
-                            <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                              {folder.name}
-                            </span>
-                          </span>
-                          <span
-                            className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
-                            style={{
-                              background: 'color-mix(in srgb, var(--color-brand) 12%, transparent)',
-                              color: 'var(--color-brand)',
-                            }}
-                          >
-                            {folder.items.length}
-                          </span>
-                        </button>
-                        {!isCollapsed && (
-                          <div className="space-y-2 border-t border-[var(--color-bg-border)] p-2">
-                            {folder.items.length === 0 ? (
-                              <p className="px-1 py-2 text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
-                                이 폴더에는 아직 변수가 없습니다.
-                              </p>
-                            ) : (
-                              folder.items.map(({ variable, index }) => (
-                                <DocumentVariableInput
-                                  key={index}
-                                  index={index}
-                                  variable={variable}
-                                  value={documentVariables.values[variable.name] ?? ''}
-                                  options={resolveTemplateVariableOptions(variable, documentVariables.values)}
-                                  isGenerating={generatingVariableName === variable.name}
-                                  onInsert={() => handleInsertVariable(
-                                    variable,
-                                    stripThinkTags(documentVariables.values[variable.name] ?? '')
-                                  )}
-                                  onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
-                                  onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
-                                  onDelete={() => handleDeleteVariable(index)}
-                                />
-                              ))
-                            )}
-                          </div>
+                        {folder.items.length}
+                      </span>
+                    </button>
+                    {!isCollapsed && (
+                      <div
+                        className="space-y-2 border-t p-2.5"
+                        style={{
+                          borderColor: 'var(--color-bg-border)',
+                          background: 'color-mix(in srgb, var(--color-bg-surface) 48%, transparent)',
+                        }}
+                      >
+                        {folder.items.length === 0 ? (
+                          <p className="rounded-md border border-dashed px-2 py-3 text-center text-[10px] italic" style={{ borderColor: 'var(--color-bg-border)', color: 'var(--color-text-muted)' }}>
+                            이 폴더에는 아직 변수가 없습니다.
+                          </p>
+                        ) : (
+                          folder.items.map(({ variable, index }) => (
+                            <DocumentVariableInput
+                              key={index}
+                              index={index}
+                              variable={variable}
+                              value={documentVariables.values[variable.name] ?? ''}
+                              options={resolveTemplateVariableOptions(variable, documentVariables.values)}
+                              isGenerating={generatingVariableName === variable.name}
+                              onInsert={() => handleInsertVariable(
+                                variable,
+                                stripThinkTags(documentVariables.values[variable.name] ?? '')
+                              )}
+                              onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
+                              onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                              onDelete={() => handleDeleteVariable(index)}
+                            />
+                          ))
                         )}
-                      </section>
-                    );
-                  })}
-                </div>
-              )}
-            </PresetSection>
+                      </div>
+                    )}
+                  </section>
+                );
+              })
+            )}
           </div>
         )}
       </div>
@@ -848,6 +883,30 @@ function createVariableFolders(folderNames: string[], variables: AdvancedTemplat
   });
 
   return Array.from(folders.entries()).map(([name, items]) => ({ name, items }));
+}
+
+function getVariableFolderAccent(index: number) {
+  const colors = [
+    'var(--ctp-blue)',
+    'var(--ctp-green)',
+    'var(--ctp-mauve)',
+    'var(--ctp-teal)',
+    'var(--ctp-peach)',
+    'var(--ctp-sapphire)',
+  ];
+  return colors[index % colors.length];
+}
+
+function getVariableTypeCounts(items: Array<{ variable: AdvancedTemplateVariable; index: number }>) {
+  const counts = new Map<AdvancedTemplateVariableType, number>();
+  for (const { variable } of items) {
+    counts.set(variable.type, (counts.get(variable.type) || 0) + 1);
+  }
+
+  return Array.from(counts.entries()).map(([type, count]) => {
+    const meta = getVariableTypeMeta(type);
+    return { type, count, label: meta.label, color: meta.color };
+  });
 }
 
 function HeaderIconButton({
