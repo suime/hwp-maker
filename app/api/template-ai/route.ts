@@ -1,18 +1,13 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from '../../../node_modules/@ai-sdk/react/node_modules/ai/dist/index.mjs';
 import { stripThinkTags } from '@/lib/ai/rhwpCommands';
+import type { AiConfig } from '@/lib/ai/client';
+import { resolveServerAiConfig } from '@/lib/ai/providers';
 
 export const maxDuration = 30;
 
-type AiConfig = {
-  provider?: string;
-  baseUrl?: string;
-  apiKey?: string;
-  model?: string;
-};
-
 type TemplateAiRequestBody = {
-  config?: AiConfig;
+  config?: Partial<AiConfig>;
   prompt?: string;
   systemPrompt?: string;
   values?: Record<string, string>;
@@ -22,16 +17,11 @@ type TemplateAiRequestBody = {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as TemplateAiRequestBody;
-    const baseURL =
-      body.config?.baseUrl ||
-      process.env.OPENAI_API_BASE_URL ||
-      'https://api.openai.com/v1';
-    const apiKey = body.config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
-    const model = body.config?.model || 'gpt-4o';
-    const openai = createOpenAI({ baseURL, apiKey });
+    const config = resolveServerAiConfig(body.config, process.env);
+    const openai = createOpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
 
     const result = await generateText({
-      model: openai(model),
+      model: openai(config.model),
       system: [
         'HWP 문서 변수 값을 생성합니다.',
         body.systemPrompt || '',

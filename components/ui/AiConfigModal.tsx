@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import type { AiConfig } from '@/lib/ai/client';
+import { switchAiProvider } from '@/lib/ai/providers';
 
 interface Props {
   onClose: () => void;
@@ -31,6 +32,22 @@ export default function AiConfigModal({ onClose }: Props) {
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-[var(--color-text-secondary)] mb-1">
+              제공자 (Provider)
+            </label>
+            <select
+              value={config.provider || 'ollama'}
+              onChange={(e) => setConfig((prev) => switchAiProvider(prev, e.target.value as AiConfig['provider']))}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
+            >
+              <option value="ollama">Ollama (로컬)</option>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
+              <option value="custom">사용자 정의 (Custom)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-[var(--color-text-secondary)] mb-1">
               Base URL
             </label>
             <input
@@ -38,7 +55,9 @@ export default function AiConfigModal({ onClose }: Props) {
               type="url"
               value={config.baseUrl}
               onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
-              placeholder="http://localhost:11434/v1"
+              placeholder={config.provider === 'gemini'
+                ? 'https://generativelanguage.googleapis.com/v1beta/openai'
+                : 'http://localhost:11434/v1'}
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
             />
           </div>
@@ -52,7 +71,7 @@ export default function AiConfigModal({ onClose }: Props) {
               type="password"
               value={config.apiKey ?? ''}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder="sk-..."
+              placeholder={config.provider === 'gemini' ? 'Gemini API key' : 'sk-...'}
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
             />
           </div>
@@ -66,7 +85,7 @@ export default function AiConfigModal({ onClose }: Props) {
               type="text"
               value={config.model}
               onChange={(e) => setConfig({ ...config, model: e.target.value })}
-              placeholder="llama3 / gpt-4o / ..."
+              placeholder="llama3 / gpt-4o / gemini-2.5-flash / ..."
               className="w-full px-3 py-2 rounded-lg bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
             />
           </div>
