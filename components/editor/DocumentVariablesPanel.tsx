@@ -688,23 +688,29 @@ export default function DocumentVariablesPanel() {
                         </button>
                         {!isCollapsed && (
                           <div className="space-y-2 border-t border-[var(--color-bg-border)] p-2">
-                            {folder.items.map(({ variable, index }) => (
-                              <DocumentVariableInput
-                                key={index}
-                                index={index}
-                                variable={variable}
-                                value={documentVariables.values[variable.name] ?? ''}
-                                options={resolveTemplateVariableOptions(variable, documentVariables.values)}
-                                isGenerating={generatingVariableName === variable.name}
-                                onInsert={() => handleInsertVariable(
-                                  variable,
-                                  stripThinkTags(documentVariables.values[variable.name] ?? '')
-                                )}
-                                onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
-                                onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
-                                onDelete={() => handleDeleteVariable(index)}
-                              />
-                            ))}
+                            {folder.items.length === 0 ? (
+                              <p className="px-1 py-2 text-[10px] italic" style={{ color: 'var(--color-text-muted)' }}>
+                                이 폴더에는 아직 변수가 없습니다.
+                              </p>
+                            ) : (
+                              folder.items.map(({ variable, index }) => (
+                                <DocumentVariableInput
+                                  key={index}
+                                  index={index}
+                                  variable={variable}
+                                  value={documentVariables.values[variable.name] ?? ''}
+                                  options={resolveTemplateVariableOptions(variable, documentVariables.values)}
+                                  isGenerating={generatingVariableName === variable.name}
+                                  onInsert={() => handleInsertVariable(
+                                    variable,
+                                    stripThinkTags(documentVariables.values[variable.name] ?? '')
+                                  )}
+                                  onChange={(value) => handleVariableChange(variable.name, stripThinkTags(value))}
+                                  onUpdate={(nextVariable) => handleUpdateVariable(index, nextVariable)}
+                                  onDelete={() => handleDeleteVariable(index)}
+                                />
+                              ))
+                            )}
                           </div>
                         )}
                       </section>
