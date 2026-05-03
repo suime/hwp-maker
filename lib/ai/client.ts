@@ -4,8 +4,14 @@
  * 직접 fetch를 쓰지 말고 이 모듈을 통해 호출하세요.
  */
 
-import { chatCompletionsUrl, type AiConfig } from '@/lib/ai/providers';
-export type { AiConfig, AiProviderType } from '@/lib/ai/providers';
+export type AiProviderType = 'openai' | 'ollama' | 'custom';
+
+export interface AiConfig {
+  provider: AiProviderType;
+  baseUrl: string;
+  apiKey?: string;
+  model: string;
+}
 
 export interface AiMessage {
   role: 'system' | 'user' | 'assistant';
@@ -32,7 +38,7 @@ export async function requestCompletion(
   const { config, messages, temperature = 0.7, maxTokens, onChunk } = options;
   const stream = !!onChunk;
 
-  const response = await fetch(chatCompletionsUrl(config.baseUrl), {
+  const response = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

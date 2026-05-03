@@ -1,3 +1,5 @@
+<<<<<<< ours
+<<<<<<< ours
 export type AiProviderType = 'openai' | 'ollama' | 'gemini' | 'custom';
 
 export interface AiConfig {
@@ -8,6 +10,12 @@ export interface AiConfig {
 }
 
 const AI_PROVIDER_VALUES = new Set<string>(['openai', 'ollama', 'gemini', 'custom']);
+=======
+import type { AiConfig, AiProviderType } from '@/lib/ai/client';
+>>>>>>> theirs
+=======
+import type { AiConfig, AiProviderType } from '@/lib/ai/client';
+>>>>>>> theirs
 
 export const AI_PROVIDER_DEFAULTS: Record<AiProviderType, Pick<AiConfig, 'baseUrl' | 'model'>> = {
   ollama: {
@@ -32,18 +40,32 @@ export function normalizeAiBaseUrl(baseUrl: string) {
   return baseUrl.trim().replace(/\/+$/, '');
 }
 
+<<<<<<< ours
+<<<<<<< ours
 function normalizeAiProvider(provider?: string): AiProviderType {
   return provider && AI_PROVIDER_VALUES.has(provider)
     ? provider as AiProviderType
     : 'ollama';
 }
 
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 export function getAiProviderDefaults(provider: AiProviderType) {
   return AI_PROVIDER_DEFAULTS[provider] || AI_PROVIDER_DEFAULTS.ollama;
 }
 
 export function applyAiConfigDefaults(config: Partial<AiConfig> = {}): AiConfig {
+<<<<<<< ours
+<<<<<<< ours
   const provider = normalizeAiProvider(config.provider);
+=======
+  const provider = config.provider || 'ollama';
+>>>>>>> theirs
+=======
+  const provider = config.provider || 'ollama';
+>>>>>>> theirs
   const defaults = getAiProviderDefaults(provider);
 
   return {
@@ -71,6 +93,8 @@ export function switchAiProvider(config: AiConfig, provider: AiProviderType): Ai
 export function chatCompletionsUrl(baseUrl: string) {
   return `${normalizeAiBaseUrl(baseUrl)}/chat/completions`;
 }
+<<<<<<< ours
+<<<<<<< ours
 
 export function resolveServerAiConfig(
   config: Partial<AiConfig> | undefined,
@@ -105,3 +129,7 @@ export function resolveServerAiConfig(
     apiKey: resolved.apiKey || env.OPENAI_API_KEY || 'dummy',
   };
 }
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs

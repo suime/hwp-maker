@@ -5,14 +5,18 @@ import { convertToModelMessages, streamText } from '../../../node_modules/@ai-sd
 import type { Attachment } from '@/types/attachment';
 import type { RhwpDocumentContext } from '@/lib/rhwp/loader';
 import { buildRhwpDocumentPrompt } from '@/lib/ai/rhwpCommands';
-import type { AiConfig } from '@/lib/ai/client';
-import { resolveServerAiConfig } from '@/lib/ai/providers';
 
 export const maxDuration = 30;
 
+type AiConfig = {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+};
+
 type ChatRequestBody = {
   messages?: unknown[];
-  config?: Partial<AiConfig>;
+  config?: AiConfig;
   systemPrompt?: string;
   attachments?: Attachment[];
   documentContext?: RhwpDocumentContext | null;
@@ -197,9 +201,14 @@ export async function POST(req: Request) {
       .filter((message): message is ChatMessage => message !== null);
 
     const messages = withAttachments(clientMessages, body.attachments);
-    const config = resolveServerAiConfig(body.config, process.env);
+    const baseURL =
+      body.config?.baseUrl ||
+      process.env.OPENAI_API_BASE_URL ||
+      'https://api.openai.com/v1';
+    const apiKey = body.config?.apiKey || process.env.OPENAI_API_KEY || 'dummy';
+    const model = body.config?.model || 'gpt-4o';
 
-    const openai = createOpenAI({ baseURL: config.baseUrl, apiKey: config.apiKey });
+    const openai = createOpenAI({ baseURL, apiKey });
     const system = [
       '응답에 <think>, </think>, reasoning, 사고 과정, 내부 추론을 절대 포함하지 마세요. 사용자에게 보여줄 최종 답변만 작성하세요.',
       body.systemPrompt,
@@ -208,7 +217,7 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join('\n\n');
     const result = streamText({
-      model: openai(config.model),
+      model: openai(model),
       system,
       messages: await convertToModelMessages(messages),
     });
