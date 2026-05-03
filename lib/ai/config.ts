@@ -4,6 +4,7 @@
  */
 
 import type { AiConfig } from '@/lib/ai/client';
+import { applyAiConfigDefaults } from '@/lib/ai/providers';
 
 const STORAGE_KEY = 'hwp-maker:ai-config';
 
@@ -19,7 +20,7 @@ export function loadAiConfig(): AiConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_CONFIG;
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) } as AiConfig;
+    return applyAiConfigDefaults({ ...DEFAULT_CONFIG, ...JSON.parse(raw) });
   } catch {
     return DEFAULT_CONFIG;
   }
@@ -27,7 +28,7 @@ export function loadAiConfig(): AiConfig {
 
 export function saveAiConfig(config: AiConfig): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(applyAiConfigDefaults(config)));
   window.dispatchEvent(new Event('ai-config-changed'));
 }
 

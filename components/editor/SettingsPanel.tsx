@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { loadAiConfig, saveAiConfig } from '@/lib/ai/config';
 import { requestCompletion } from '@/lib/ai/client';
 import type { AiConfig } from '@/lib/ai/client';
+import { switchAiProvider } from '@/lib/ai/providers';
 import { clearAllSessions } from '@/lib/chat/sessions';
 import { clearSession } from '@/lib/session';
 import {
@@ -160,27 +161,18 @@ export default function SettingsPanel({
               value={config.provider || 'ollama'}
               onChange={(e) => {
                 const provider = e.target.value as AiConfig['provider'];
-                setConfig(prev => {
-                  const newConfig = { ...prev, provider };
-                  if (provider === 'openai') {
-                    newConfig.baseUrl = 'https://api.openai.com/v1';
-                    if (!newConfig.model || newConfig.model.includes('llama')) newConfig.model = 'gpt-4o';
-                  } else if (provider === 'ollama') {
-                    newConfig.baseUrl = 'http://localhost:11434/v1';
-                    if (!newConfig.model || newConfig.model.includes('gpt')) newConfig.model = 'llama3';
-                  }
-                  return newConfig;
-                });
+                setConfig((prev) => switchAiProvider(prev, provider));
               }}
               className="w-full text-sm bg-[var(--color-bg-surface)] border border-[var(--color-bg-border)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]"
             >
               <option value="ollama">Ollama (로컬)</option>
               <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
               <option value="custom">사용자 정의 (Custom)</option>
             </select>
           </div>
 
-          {(config.provider === 'ollama' || config.provider === 'custom') && (
+          {(config.provider === 'ollama' || config.provider === 'gemini' || config.provider === 'custom') && (
             <div>
               <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
                 Base URL
@@ -190,13 +182,15 @@ export default function SettingsPanel({
                 type="url"
                 value={config.baseUrl}
                 onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
-                placeholder="http://localhost:11434/v1"
+                placeholder={config.provider === 'gemini'
+                  ? 'https://generativelanguage.googleapis.com/v1beta/openai'
+                  : 'http://localhost:11434/v1'}
                 className="input"
               />
             </div>
           )}
 
-          {(config.provider === 'openai' || config.provider === 'custom') && (
+          {(config.provider === 'openai' || config.provider === 'gemini' || config.provider === 'custom') && (
             <div>
               <label className="block text-xs mb-1" style={{ color: 'var(--color-text-secondary)' }}>
                 API Key
@@ -206,7 +200,7 @@ export default function SettingsPanel({
                 type="password"
                 value={config.apiKey ?? ''}
                 onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-                placeholder="sk-..."
+                placeholder={config.provider === 'gemini' ? 'Gemini API key' : 'sk-...'}
                 className="input"
               />
             </div>
@@ -221,7 +215,11 @@ export default function SettingsPanel({
               type="text"
               value={config.model}
               onChange={(e) => setConfig({ ...config, model: e.target.value })}
-              placeholder={config.provider === 'openai' ? 'gpt-4o' : 'llama3'}
+              placeholder={config.provider === 'openai'
+                ? 'gpt-4o'
+                : config.provider === 'gemini'
+                  ? 'gemini-2.5-flash'
+                  : 'llama3'}
               className="input"
             />
           </div>

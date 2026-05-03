@@ -8,6 +8,7 @@ interface Template {
   id: string;
   name: string;
   description: string;
+  folder?: string;
   builtIn: boolean;
   advanced?: boolean;
   filePath?: string;
@@ -17,6 +18,9 @@ interface Template {
 
 // 기존 하드코딩 목록 제거 (API에서 로드)
 const MY_TEMPLATES_KEY = 'hwp-maker:my-templates';
+const MY_TEMPLATE_FOLDERS_KEY = 'hwp-maker:my-template-folders';
+const DEFAULT_TEMPLATE_FOLDER = '기본';
+const DEFAULT_USER_TEMPLATE_FOLDER = '내 템플릿';
 
 function hasDocumentContent(text?: string) {
   return Boolean(text?.replace(/\s+/g, '').length);
@@ -35,14 +39,78 @@ function loadMyTemplates() {
   }
 }
 
+function loadMyTemplateFolders() {
+  if (typeof window === 'undefined') return [DEFAULT_USER_TEMPLATE_FOLDER];
+  const raw = localStorage.getItem(MY_TEMPLATE_FOLDERS_KEY);
+  if (!raw) return [DEFAULT_USER_TEMPLATE_FOLDER];
+
+  try {
+    const folders = JSON.parse(raw);
+    if (!Array.isArray(folders)) return [DEFAULT_USER_TEMPLATE_FOLDER];
+    return normalizeFolderNames(folders.filter((item): item is string => typeof item === 'string'));
+  } catch (error) {
+    console.error('사용자 템플릿 폴더 로드 실패', error);
+    return [DEFAULT_USER_TEMPLATE_FOLDER];
+  }
+}
+
+function normalizeFolderName(folder?: string) {
+  return folder?.trim() || DEFAULT_TEMPLATE_FOLDER;
+}
+
+function normalizeUserFolderName(folder?: string) {
+  return folder?.trim() || DEFAULT_USER_TEMPLATE_FOLDER;
+}
+
+function normalizeFolderNames(folders: string[]) {
+  const names = folders.map(normalizeUserFolderName);
+  return Array.from(new Set([DEFAULT_USER_TEMPLATE_FOLDER, ...names]));
+}
+
+function saveMyTemplateFolders(folders: string[]) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(MY_TEMPLATE_FOLDERS_KEY, JSON.stringify(normalizeFolderNames(folders)));
+}
+
+function createTemplateFolders(templates: Template[], fallbackFolder: string) {
+  const folders = new Map<string, Template[]>();
+
+  for (const template of templates) {
+    const folder = normalizeFolderName(template.folder || fallbackFolder);
+    folders.set(folder, [...(folders.get(folder) || []), template]);
+  }
+
+  return Array.from(folders.entries()).map(([name, items]) => ({ name, items }));
+}
+
+function createUserTemplateFolders(templates: Template[], folderNames: string[]) {
+  const folders = new Map<string, Template[]>();
+  for (const folder of normalizeFolderNames(folderNames)) {
+    folders.set(folder, []);
+  }
+
+  for (const template of templates) {
+    const folder = normalizeUserFolderName(template.folder);
+    folders.set(folder, [...(folders.get(folder) || []), template]);
+  }
+
+  return Array.from(folders.entries()).map(([name, items]) => ({ name, items }));
+}
+
 export default function TemplatePanel() {
   const [builtinTemplates, setBuiltinTemplates] = useState<Template[]>([]);
   const [myTemplates, setMyTemplates] = useState<Template[]>(loadMyTemplates);
+  const [myFolders, setMyFolders] = useState<string[]>(loadMyTemplateFolders);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const userPreviewUrlsRef = useRef<string[]>([]);
+  const uploadTargetFolderRef = useRef(DEFAULT_USER_TEMPLATE_FOLDER);
+
+  const builtinFolders = createTemplateFolders(builtinTemplates, DEFAULT_TEMPLATE_FOLDER);
+  const userFolders = createUserTemplateFolders(myTemplates, myFolders);
 
   useEffect(() => {
     // 0. 에디터 준비 상태 구독
@@ -109,6 +177,39 @@ export default function TemplatePanel() {
     }
   }
 
+  function handleAddFolder() {
+    const name = window.prompt('추가할 템플릿 폴더 이름을 입력하세요.');
+    const folderName = normalizeUserFolderName(name || '');
+    if (!folderName) return;
+
+    const nextFolders = normalizeFolderNames([...myFolders, folderName]);
+    setMyFolders(nextFolders);
+    saveMyTemplateFolders(nextFolders);
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      next.delete(`user:${folderName}`);
+      return next;
+    });
+  }
+
+  function toggleFolder(scope: 'builtin' | 'user', folder: string) {
+    const key = `${scope}:${folder}`;
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  function openUpload(folder = DEFAULT_USER_TEMPLATE_FOLDER) {
+    uploadTargetFolderRef.current = normalizeUserFolderName(folder);
+    fileInputRef.current?.click();
+  }
+
   function handleUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -122,12 +223,18 @@ export default function TemplatePanel() {
         id: `user-${Date.now()}`,
         name: file.name.replace(/\.(hwp|hwpx)$/i, ''),
         description: '사용자 업로드 템플릿',
+        folder: uploadTargetFolderRef.current,
         builtIn: false,
         previewUrl,
         data,
       };
       const updated = [...myTemplates, newTemplate];
       setMyTemplates(updated);
+      setMyFolders((current) => {
+        const next = normalizeFolderNames([...current, uploadTargetFolderRef.current]);
+        saveMyTemplateFolders(next);
+        return next;
+      });
       // ArrayBuffer는 JSON.stringify가 안되므로 실제 앱에선 인덱스드DB 등을 고려해야 함
       // 여기선 세션 내에서만 유지되도록 처리 (스토리지는 메타만)
     };
@@ -162,14 +269,24 @@ export default function TemplatePanel() {
             양식을 선택하세요
           </p>
         </div>
-        <button
-          id="template-upload-btn"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-sm btn btn-ghost"
-          title="hwp/hwpx 파일을 템플릿으로 추가"
-        >
-          +
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            id="template-folder-add-btn"
+            onClick={handleAddFolder}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-sm btn btn-ghost"
+            title="내 템플릿 폴더 추가"
+          >
+            <FolderPlusIcon />
+          </button>
+          <button
+            id="template-upload-btn"
+            onClick={() => openUpload()}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-sm btn btn-ghost"
+            title="hwp/hwpx 파일을 템플릿으로 추가"
+          >
+            +
+          </button>
+        </div>
         <input ref={fileInputRef} type="file" accept=".hwp,.hwpx" className="hidden" onChange={handleUpload} />
       </div>
 
@@ -177,45 +294,80 @@ export default function TemplatePanel() {
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <TemplateSection>
           <TemplateSectionTitle>기본 템플릿</TemplateSectionTitle>
-          <ul className="space-y-0.5">
-            {builtinTemplates.length === 0 ? (
-              <p className="text-[10px] px-2 py-2 text-[var(--color-text-muted)] italic">
-                불러올 수 있는 기본 양식이 없습니다.
-              </p>
-            ) : (
-              builtinTemplates.map((t) => (
-                <TemplateItem 
-                  key={t.id} 
-                  template={t} 
-                  isActive={activeId === t.id} 
-                  isLoading={loadingId === t.id}
-                  onSelect={() => handleSelect(t)} 
-                />
-              ))
-            )}
-          </ul>
+          {builtinTemplates.length === 0 ? (
+            <p className="text-[10px] px-2 py-2 text-[var(--color-text-muted)] italic">
+              불러올 수 있는 기본 양식이 없습니다.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {builtinFolders.map((folder) => (
+                <TemplateFolder
+                  key={folder.name}
+                  name={folder.name}
+                  count={folder.items.length}
+                  collapsed={collapsedFolders.has(`builtin:${folder.name}`)}
+                  onToggle={() => toggleFolder('builtin', folder.name)}
+                >
+                  <ul className="space-y-0.5">
+                    {folder.items.map((t) => (
+                      <TemplateItem
+                        key={t.id}
+                        template={t}
+                        isActive={activeId === t.id}
+                        isLoading={loadingId === t.id}
+                        onSelect={() => handleSelect(t)}
+                      />
+                    ))}
+                  </ul>
+                </TemplateFolder>
+              ))}
+            </div>
+          )}
         </TemplateSection>
 
         <TemplateSection>
-          <TemplateSectionTitle>내 템플릿</TemplateSectionTitle>
-          {myTemplates.length === 0 ? (
-            <p className="text-xs text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
-              + 버튼으로 hwpx 파일을 추가하세요
-            </p>
-          ) : (
-            <ul className="space-y-0.5">
-              {myTemplates.map((t) => (
-                <TemplateItem
-                  key={t.id} 
-                  template={t} 
-                  isActive={activeId === t.id}
-                  isLoading={loadingId === t.id}
-                  onSelect={() => handleSelect(t)} 
-                  onDelete={() => handleDelete(t.id)}
-                />
-              ))}
-            </ul>
-          )}
+          <div className="flex items-center justify-between gap-2">
+            <TemplateSectionTitle>내 템플릿</TemplateSectionTitle>
+            <button
+              type="button"
+              onClick={() => openUpload()}
+              className="rounded px-2 py-1 text-[10px] font-medium transition-colors hover:bg-[var(--color-bg-surface)]"
+              style={{ color: 'var(--color-brand)' }}
+            >
+              업로드
+            </button>
+          </div>
+          <div className="space-y-2">
+            {userFolders.map((folder) => (
+              <TemplateFolder
+                key={folder.name}
+                name={folder.name}
+                count={folder.items.length}
+                collapsed={collapsedFolders.has(`user:${folder.name}`)}
+                onToggle={() => toggleFolder('user', folder.name)}
+                onAdd={() => openUpload(folder.name)}
+              >
+                {folder.items.length === 0 ? (
+                  <p className="rounded-md border border-dashed px-2 py-3 text-center text-[10px] italic" style={{ borderColor: 'var(--color-bg-border)', color: 'var(--color-text-muted)' }}>
+                    이 폴더에는 아직 템플릿이 없습니다.
+                  </p>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {folder.items.map((t) => (
+                      <TemplateItem
+                        key={t.id}
+                        template={t}
+                        isActive={activeId === t.id}
+                        isLoading={loadingId === t.id}
+                        onSelect={() => handleSelect(t)}
+                        onDelete={() => handleDelete(t.id)}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </TemplateFolder>
+            ))}
+          </div>
         </TemplateSection>
       </div>
     </div>
@@ -250,6 +402,108 @@ function TemplateSectionTitle({ children }: { children: ReactNode }) {
         {children}
       </p>
     </div>
+  );
+}
+
+function TemplateFolder({
+  name,
+  count,
+  collapsed,
+  onToggle,
+  onAdd,
+  children,
+}: {
+  name: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  onAdd?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className="overflow-hidden rounded-lg border"
+      style={{
+        background: 'var(--color-bg-base)',
+        borderColor: 'var(--color-bg-border)',
+      }}
+    >
+      <div
+        className="flex items-center gap-1 border-b"
+        style={{ borderColor: collapsed ? 'transparent' : 'var(--color-bg-border)' }}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2.5 py-2 text-left transition-colors hover:bg-[var(--color-bg-surface)]"
+          aria-expanded={!collapsed}
+          title={collapsed ? `${name} 폴더 펼치기` : `${name} 폴더 접기`}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <FolderIcon />
+            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }} aria-hidden="true">
+              {collapsed ? '▸' : '▾'}
+            </span>
+            <span className="truncate text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+              {name}
+            </span>
+          </span>
+          <span
+            className="rounded-full px-1.5 py-0.5 text-[9px] font-medium"
+            style={{
+              background: 'color-mix(in srgb, var(--color-brand) 12%, transparent)',
+              color: 'var(--color-brand)',
+            }}
+          >
+            {count}
+          </span>
+        </button>
+        {onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-sm transition-colors hover:bg-[var(--color-bg-surface)]"
+            style={{ color: 'var(--color-brand)' }}
+            title={`${name} 폴더에 템플릿 추가`}
+          >
+            +
+          </button>
+        )}
+      </div>
+      {!collapsed && (
+        <div className="space-y-1 p-2">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg
+      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="flex-shrink-0"
+      style={{ color: 'var(--color-brand)' }}
+      aria-hidden="true"
+    >
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+    </svg>
+  );
+}
+
+function FolderPlusIcon() {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 10v6" />
+      <path d="M9 13h6" />
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z" />
+    </svg>
   );
 }
 
