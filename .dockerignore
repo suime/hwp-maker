@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+npm-debug.log*
+.env*
+.sisyphus
+*.tar
+*.tar.gz
+Dockerfile.*
+.DS_Store

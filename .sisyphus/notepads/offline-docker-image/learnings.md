@@ -1,0 +1,2 @@
+2026-05-04: Next.js 16 standalone output works through a typed `NextConfig` object with `output: "standalone"`; the bundled docs confirm `.next/standalone/server.js` plus manual copies of `public/` and `.next/static/`.
+2026-05-04: Added `public/rhwp-studio/**` to ESLint global ignores so generated rhwp studio bundles no longer block lint verification; the config still preserves `.next/**`, `out/**`, `build/**`, and `next-env.d.ts`.

@@ -115,6 +115,53 @@ npm run start    # 빌드 결과 실행
 npm run lint     # ESLint
 ```
 
+## Docker 오프라인 실행
+
+온라인 환경에서 이미지를 빌드 및 내보내기(export)하고, 오프라인 환경에서 불러오기(load) 및 실행하는 방법입니다.
+
+### 1. 온라인 환경: 이미지 빌드 및 저장
+
+온라인 환경에서 Docker 이미지를 빌드하고 `.tar` 파일로 저장합니다.
+
+```bash
+docker build --platform linux/amd64 -t hwp-maker:offline .
+# 또는 buildx를 사용하는 경우
+docker buildx build --load --platform linux/amd64 -t hwp-maker:offline .
+
+docker save hwp-maker:offline -o hwp-maker-offline-linux-amd64.tar
+```
+
+`hwp-maker-offline-linux-amd64.tar` 파일은 전송용 아티팩트이며 저장소에 커밋하지 마세요.
+
+### 2. 오프라인 환경: 이미지 로드 및 실행
+
+저장한 `.tar` 파일을 오프라인 장비로 복사한 후 다음 명령을 실행합니다.
+
+```bash
+docker load -i hwp-maker-offline-linux-amd64.tar
+docker run --rm --pull=never -p 3000:3000 --name hwp-maker-offline hwp-maker:offline
+```
+
+컨테이너를 중지하려면 다음 명령을 사용합니다.
+
+```bash
+docker stop hwp-maker-offline
+```
+
+### AI 런타임 설정 (선택 사항)
+
+AI 기능을 사용하려면 컨테이너 내부에서 접근 가능한 AI 엔드포인트가 필요합니다. 실행 시 환경 변수(`-e`)를 통해 설정할 수 있습니다.
+
+**설정 예시:**
+- `-e OPENAI_API_BASE_URL=http://host.docker.internal:11434/v1`
+- `-e OPENAI_API_KEY=dummy`
+- `-e GEMINI_API_BASE_URL=...`
+- `-e GEMINI_API_KEY=...` 또는 `-e GOOGLE_API_KEY=...`
+
+**참고 사항:**
+- AI 기능을 제외한 에디터, 템플릿, 프리셋 기능은 AI 환경 변수 없이도 정상 동작합니다.
+- AI 호출을 위해서는 컨테이너 내부에서 도달 가능한(reachable) 엔드포인트 주소가 필요합니다.
+
 ## rhwp 에디터 연동
 
 `components/editor/PreviewPanel.tsx`가 `@rhwp/editor`를 클라이언트에서 동적으로 로드하고 `/rhwp-studio/index.html`을 iframe으로 띄웁니다.
